@@ -35,3 +35,7 @@ secrets/
 # === IDE ===
 *.code-workspace
 .idea/
+
+# Generierte HTML-Dateien
+docs/*.html
+start.html
