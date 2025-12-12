@@ -1,6 +1,6 @@
 # AMR Entwicklerdokumentation
 
-> **Stand:** 2025-12-12 | **Phase:** 1 ✅ ABGESCHLOSSEN | **Firmware:** v0.3.0-serial
+> **Stand:** 2025-12-12 | **Phase:** 2 ✅ ABGESCHLOSSEN | **Firmware:** v0.5.0-pid
 
 ---
 
@@ -22,23 +22,28 @@
 | LED-Status (D10) | ✅ | Breathing + Blink |
 | PWM (20 kHz) | ✅ | Unhörbar |
 | Failsafe (500ms) | ✅ | Motoren stoppen bei Timeout |
-| Deadzone-Kompensation | ✅ | Auch kleine Geschwindigkeiten funktionieren |
+| Deadzone-Kompensation | ✅ | Auch kleine Geschwindigkeiten |
 | Git-Workflow | ✅ | Mac → GitHub → Pi |
-| Docker-Stack | ✅ | perception + serial_bridge Container |
-| **Serial-Bridge** | ✅ | ROS 2 /cmd_vel → ESP32 |
-| **Teleop** | ✅ | Tastatursteuerung funktioniert |
+| Docker-Stack | ✅ | perception + serial_bridge |
+| Serial-Bridge | ✅ | ROS 2 /cmd_vel → ESP32 |
+| Teleop | ✅ | Tastatursteuerung |
+| **Encoder-Kalibrierung** | ✅ | 374.3 / 373.6 Ticks/Rev |
+| **Odometrie** | ✅ | x, y, theta berechnet |
+| **PID-Regelung** | ✅ | Kp=13, Ki=5, Kd=0.01 |
+| **ROS 2 /odom** | ✅ | nav_msgs/Odometry |
+| **TF odom→base_link** | ✅ | Broadcast aktiv |
 
 ### 1.2 Was blockiert ist ⚠️
 
 | Problem | Ursache | Workaround |
 |---------|---------|------------|
-| **micro-ROS Build** | Python 3.13 inkompatibel | ✅ Serial-Bridge implementiert |
+| micro-ROS Build | Python 3.13 inkompatibel | ✅ Serial-Bridge |
 
-### 1.3 Offene Punkte (Phase 2)
+### 1.3 Offene Punkte (Phase 3)
 
-- [ ] Encoder-Kalibrierung
-- [ ] Odometrie-Publisher
-- [ ] PID-Regelung
+- [ ] RPLIDAR in Docker integrieren
+- [ ] SLAM Toolbox konfigurieren
+- [ ] Erste Karte erstellen
 
 ---
 
@@ -69,35 +74,56 @@
 | 0 | 0 | Coast (Auslaufen) |
 | PWM | PWM | Active Brake |
 
+### 2.3 Encoder-Kalibrierung (Phase 2)
+
+| Parameter | Theoretisch | Kalibriert | Methode |
+|-----------|-------------|------------|---------|
+| Ticks/Rev Links | 390.5 | **374.3** | 10-Umdrehungen-Test |
+| Ticks/Rev Rechts | 390.5 | **373.6** | 10-Umdrehungen-Test |
+| Abweichung | - | -4.2% | Getriebespiel |
+
 ---
 
 ## 3. Software-Architektur
 
-### 3.1 Serial-Bridge (Phase 1 Lösung)
+### 3.1 Serial-Bridge mit Odometrie (Phase 2)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        Serial-Bridge Architektur                        │
+│                   Serial-Bridge Architektur (v0.5.0)                    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │   ROS 2 (Docker)              USB-Serial              ESP32-S3          │
 │  ┌──────────────┐            ┌────────┐            ┌──────────────┐    │
-│  │ Teleop       │            │ Bridge │            │ Differential │    │
-│  │ /cmd_vel     │───────────▶│ Node   │───────────▶│ Drive        │    │
-│  │ Twist msg    │            │ Python │  V:0.2,    │ Kinematik    │    │
-│  └──────────────┘            └────────┘  W:0.5\n   └──────────────┘    │
-│                               /dev/ttyACM0                              │
+│  │ /cmd_vel     │───────────▶│ Bridge │───────────▶│ PID-Regler   │    │
+│  │ Twist msg    │            │ Node   │  V:0.2,    │ pro Rad      │    │
+│  └──────────────┘            │ Python │  W:0.0\n   └──────────────┘    │
+│                              └────────┘                  │              │
+│  ┌──────────────┐                 ▲                      ▼              │
+│  │ /odom        │◀────────────────│            ┌──────────────┐        │
+│  │ Odometry msg │   ODOM:l,r,     │            │ Encoder ISR  │        │
+│  └──────────────┘   x,y,theta     │            │ Odometrie    │        │
+│                                   │            └──────────────┘        │
+│  ┌──────────────┐                 │                                    │
+│  │ TF: odom →   │◀────────────────┘                                    │
+│  │   base_link  │                                                      │
+│  └──────────────┘                                                      │
+│                               /dev/ttyACM0                             │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.2 Serial-Protokoll
+### 3.2 Serial-Protokoll (v0.5.0)
 
 | Richtung | Format | Beispiel |
 |----------|--------|----------|
-| Host → ESP32 | `V:<m/s>,W:<rad/s>\n` | `V:0.20,W:0.50\n` |
-| ESP32 → Host | `OK:<v>,<w>` | `OK:0.20,0.50` |
+| Host → ESP32 | `V:<m/s>,W:<rad/s>\n` | `V:0.20,W:0.00\n` |
+| Host → ESP32 | `RESET_ODOM\n` | Odometrie zurücksetzen |
+| Host → ESP32 | `PID:<Kp>,<Ki>,<Kd>\n` | `PID:13.0,5.0,0.01\n` |
+| Host → ESP32 | `DEBUG:ON\n` / `DEBUG:OFF\n` | VEL-Nachrichten |
+| ESP32 → Host | `OK:<v>,<w>` | Bestätigung |
+| ESP32 → Host | `ODOM:<l>,<r>,<x>,<y>,<th>\n` | Odometrie (50 Hz) |
+| ESP32 → Host | `VEL:<vl>,<vr>,<pwml>,<pwmr>\n` | Debug (10 Hz) |
 | ESP32 → Host | `FAILSAFE:TIMEOUT` | Nach 500ms ohne Befehl |
-| ESP32 → Host | `ERR:CMD_OUT_OF_RANGE` | Bei ungültigen Werten |
 
 ### 3.3 Docker Container
 
@@ -111,15 +137,15 @@
 ## 4. Projekt-Struktur
 
 ```
-amr-platform/                    # GitHub: unger-robotics/amr-platform
+amr-platform/                    # GitHub: ju1-eu/amr-platform
 ├── firmware/                    # micro-ROS Firmware (nicht verwendet)
 ├── firmware_serial/             # Serial-Bridge Firmware ✅
 │   ├── platformio.ini
-│   ├── include/config.h
-│   └── src/main.cpp
+│   ├── include/config.h         # PID: Kp=13, Ki=5, Kd=0.01
+│   └── src/main.cpp             # v0.5.0-pid
 ├── firmware_test/               # Hardware-Test Firmware
 ├── docker/
-│   ├── docker-compose.yml       # perception + serial_bridge
+│   ├── docker-compose.yml
 │   └── perception/
 ├── ros2_ws/
 │   └── src/
@@ -127,12 +153,12 @@ amr-platform/                    # GitHub: unger-robotics/amr-platform
 │       ├── amr_bringup/
 │       └── amr_serial_bridge/   # ROS 2 Serial Bridge ✅
 │           ├── amr_serial_bridge/
-│           │   └── serial_bridge.py
+│           │   └── serial_bridge.py  # v0.4.0-odom
 │           ├── launch/
 │           ├── package.xml
 │           └── setup.py
 └── scripts/
-    └── deploy.sh
+    └── tune_pid.sh              # PID-Tuning Script
 ```
 
 ---
@@ -147,13 +173,30 @@ pio run --target upload
 pio device monitor
 ```
 
-**Serial-Befehle:**
+**Erwartete Ausgabe:**
 
-- `V:0.2,W:0.0` → Vorwärts
-- `V:0.0,W:0.5` → Drehen
-- `V:0.0,W:0.0` → Stopp
+```
+AMR-ESP32 v0.5.0-pid ready
+PID: Kp=13.00 Ki=5.00 Kd=0.01
+Commands: V:v,W:w | RESET_ODOM | PID:Kp,Ki,Kd | DEBUG:ON/OFF
+```
 
-### 5.2 Docker-Stack (auf Pi)
+### 5.2 PID-Tuning (auf Pi)
+
+```bash
+ssh pi@rover
+cd ~/amr-platform/docker && docker compose down
+~/tune_pid.sh
+```
+
+**Befehle im Script:**
+
+- `test` – 1m Geradeaus-Test
+- `p 13.0` – Kp setzen
+- `i 5.0` – Ki setzen
+- `debug` – Velocity-Ausgabe
+
+### 5.3 Docker-Stack (auf Pi)
 
 ```bash
 ssh pi@rover
@@ -162,58 +205,40 @@ docker compose up -d
 docker compose logs -f serial_bridge
 ```
 
-### 5.3 Teleop-Test
+### 5.4 Teleop-Test
 
 ```bash
-# Terminal 1: Serial Bridge läuft bereits via Docker
-
-# Terminal 2: Teleop starten
 docker exec -it amr_perception bash
 source /opt/ros/jazzy/setup.bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
-**Tasten:** `i`=Vorwärts, `,`=Rückwärts, `j`/`l`=Drehen, `k`=Stopp
-
-### 5.4 Git-Workflow
-
-```bash
-# Mac: Entwickeln
-cd /Users/jan/daten/start/IoT/AMR/amr-platform
-git pull origin main
-# ... arbeiten ...
-git add .
-git commit -m "feat: Beschreibung"
-git push origin main
-
-# Pi: Deployen
-ssh pi@rover
-cd ~/amr-platform
-git pull origin main
-docker compose -f docker/docker-compose.yml up -d
-```
-
 ---
 
-## 6. Phase 1 Abschluss-Protokoll
+## 6. Phase 2 Abschluss-Protokoll
 
-### 6.1 Durchgeführte Tests
+### 6.1 PID-Tuning Ergebnisse
 
-| Test | Ergebnis | Datum |
-|------|----------|-------|
-| Motor vorwärts | ✅ Beide Räder drehen | 2025-12-12 |
-| Motor rückwärts | ✅ Beide Räder drehen | 2025-12-12 |
-| Differential Drive links | ✅ Roboter dreht | 2025-12-12 |
-| Differential Drive rechts | ✅ Roboter dreht | 2025-12-12 |
-| Failsafe Timeout | ✅ Motoren stoppen nach 500ms | 2025-12-12 |
-| Teleop via Docker | ✅ Tastatursteuerung funktioniert | 2025-12-12 |
+| Parameter | Startwert | Endwert | Methode |
+|-----------|-----------|---------|---------|
+| Kp | 2.0 | **13.0** | Inkrementell erhöht |
+| Ki | 0.5 | **5.0** | Stationären Fehler eliminiert |
+| Kd | 0.01 | **0.01** | Beibehalten (kein Überschwingen) |
 
-### 6.2 Lessons Learned
+### 6.2 Bodentest-Ergebnisse (1m @ 0.2 m/s)
 
-1. **micro-ROS + Python 3.13 = Inkompatibel** → Serial-Bridge als Workaround
-2. **Deadzone-Kompensation notwendig** für kleine Geschwindigkeiten
-3. **ESP32 Arduino 2.x API** verwendet `ledcSetup()` + `ledcAttachPin()`, nicht `ledcAttach()`
-4. **Docker `ros:jazzy-ros-base`** hat kein pip3 → `apt install python3-serial`
+| Metrik | Open-Loop | Mit PID | Verbesserung |
+|--------|-----------|---------|--------------|
+| Distanz x | 1.158 m | 0.984 m | Fehler: 16% → 1.6% |
+| Drift y | 14 cm | 0.5 cm | **28× besser** |
+| Encoder L/R | 2381/2470 | 1802/1802 | **Synchron** |
+
+### 6.3 Lessons Learned
+
+1. **Encoder-Kalibrierung essentiell** – Theoretische Werte (390.5) weichen 4% ab
+2. **PID-Tuning iterativ** – Kp zuerst, dann Ki für stationären Fehler
+3. **Heartbeat für Tests** – Failsafe (500ms) erfordert kontinuierliche Befehle
+4. **Bodentest vs. aufgebockt** – Schlupf beeinflusst Ergebnisse
 
 ---
 
@@ -232,22 +257,20 @@ docker compose -f docker/docker-compose.yml up -d
 
 | Datum | Version | Änderung |
 |-------|---------|----------|
-| 2025-12-12 | v0.3.0-serial | **Phase 1 abgeschlossen** |
-| 2025-12-12 | v0.3.0-serial | Serial-Bridge Firmware mit Deadzone-Kompensation |
-| 2025-12-12 | - | ROS 2 Serial Bridge Package erstellt |
-| 2025-12-12 | - | Docker Integration (serial_bridge Container) |
-| 2025-12-12 | - | Teleop-Test erfolgreich |
-| 2025-12-12 | - | Git-Workflow Mac ↔ GitHub ↔ Pi eingerichtet |
+| 2025-12-12 | v0.5.0-pid | **Phase 2 abgeschlossen** |
+| 2025-12-12 | v0.5.0-pid | PID-Tuning: Kp=13, Ki=5, Kd=0.01 |
+| 2025-12-12 | v0.4.0-odom | Odometrie + ROS 2 /odom Publisher |
+| 2025-12-12 | v0.4.0-odom | Encoder-Kalibrierung: 374.3/373.6 |
+| 2025-12-12 | v0.3.0-serial | Phase 1 abgeschlossen |
 
 ---
 
-## 9. Nächste Schritte: Phase 2
+## 9. Nächste Schritte: Phase 3
 
-1. **Encoder-Kalibrierung** (10-Umdrehungen-Test)
-2. **Odometrie auf ESP32** berechnen
-3. **Serial-Protokoll erweitern:** `ODOM:left_ticks,right_ticks\n`
-4. **ROS 2 `/odom` Publisher** in Bridge-Node
-5. **TF-Broadcast:** `odom` → `base_link`
+1. **RPLIDAR A1** in Docker Container integrieren
+2. **slam_toolbox** konfigurieren
+3. **Testraum kartieren** – erste Karte erstellen
+4. **Karte speichern** – PGM + YAML
 
 ---
 

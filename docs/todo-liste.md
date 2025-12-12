@@ -1,6 +1,6 @@
 # ToDo-Liste AMR-Projekt
 
-> **Stand:** 2025-12-12 | **Aktuelle Phase:** 2 (Odometrie)
+> **Stand:** 2025-12-12 | **Aktuelle Phase:** 3 (SLAM)
 
 ---
 
@@ -9,9 +9,9 @@
 | Phase | Beschreibung | Status |
 |-------|--------------|--------|
 | Phase 0 | Fundament (OS, Docker, Hailo) | ✅ Abgeschlossen |
-| Phase 1 | Motor-Test + Teleop | ✅ **Abgeschlossen** |
-| Phase 2 | Encoder + Odometrie | ◄── **AKTUELL** |
-| Phase 3 | LiDAR + SLAM | ⬜ |
+| Phase 1 | Motor-Test + Teleop | ✅ Abgeschlossen |
+| Phase 2 | Encoder + Odometrie + PID | ✅ **Abgeschlossen** |
+| Phase 3 | LiDAR + SLAM | ◄── **AKTUELL** |
 | Phase 4 | Navigation | ⬜ |
 | Phase 5 | Kamera + AI | ⬜ |
 | Phase 6 | Integration | ⬜ |
@@ -38,45 +38,72 @@
 
 ---
 
-## 🎯 Phase 2: Odometrie (AKTUELL)
+## ✅ Phase 2: Abgeschlossen (2025-12-12)
 
 ### 2.1 Encoder-Kalibrierung
 
-- [ ] Kalibrierungs-Sketch auf ESP32 flashen
-- [ ] Linkes Rad: 10 Umdrehungen drehen, Ticks zählen
-- [ ] Rechtes Rad: 10 Umdrehungen drehen, Ticks zählen
-- [ ] `TICKS_PER_REV_LEFT` in config.h eintragen
-- [ ] `TICKS_PER_REV_RIGHT` in config.h eintragen
+- [x] Kalibrierungs-Sketch auf ESP32 flashen
+- [x] Linkes Rad: 10 Umdrehungen → 3743 Ticks
+- [x] Rechtes Rad: 10 Umdrehungen → 3736 Ticks
+- [x] `TICKS_PER_REV_LEFT = 374.3f` in config.h
+- [x] `TICKS_PER_REV_RIGHT = 373.6f` in config.h
 
 ### 2.2 ESP32 Firmware erweitern
 
-- [ ] Encoder-ISR implementieren (D6, D7)
-- [ ] Odometrie-Berechnung (x, y, theta)
-- [ ] Serial-Protokoll erweitern: `ODOM:left,right,x,y,theta\n`
-- [ ] Tick-Counter zurücksetzen bei Reset
+- [x] Encoder-ISR implementieren (D6, D7)
+- [x] Odometrie-Berechnung (x, y, theta)
+- [x] Serial-Protokoll: `ODOM:<l>,<r>,<x>,<y>,<theta>\n`
+- [x] `RESET_ODOM` Befehl
+- [x] PID-Geschwindigkeitsregelung (Kp=13, Ki=5, Kd=0.01)
+- [x] Live-Tuning: `PID:<Kp>,<Ki>,<Kd>` Befehl
+- [x] Debug-Modus: `DEBUG:ON/OFF` für VEL-Nachrichten
 
 ### 2.3 ROS 2 Bridge erweitern
 
-- [ ] Odometrie parsen
-- [ ] `/odom` Topic publizieren (nav_msgs/Odometry)
-- [ ] TF-Broadcast: `odom` → `base_link`
+- [x] Odometrie parsen
+- [x] `/odom` Topic publizieren (nav_msgs/Odometry)
+- [x] TF-Broadcast: `odom` → `base_link`
 
-### 2.4 Validierung
+### 2.4 Validierung (Bodentest)
 
-- [ ] 1 m vorwärts fahren → Odometrie zeigt ~1 m (±5%)
-- [ ] 360° drehen → Odometrie zeigt ~360° (±10%)
-- [ ] RViz2: Odometrie-Pfad visualisieren
+| Test | Soll | Ist | Status |
+|------|------|-----|--------|
+| 1m Geradeaus | x=1.0m | x=0.984m | ✅ 1.6% Fehler |
+| Drift | y=0.0m | y=0.005m | ✅ 0.5cm |
+| Encoder-Sync | gleich | 1802/1802 | ✅ Perfekt |
+
+### Vergleich Open-Loop vs. PID
+
+| Metrik | Open-Loop | Mit PID | Verbesserung |
+|--------|-----------|---------|--------------|
+| Distanzfehler | 16% | 1.6% | **10× besser** |
+| Drift | 14 cm | 0.5 cm | **28× besser** |
+
+---
+
+## 🎯 Phase 3: SLAM (AKTUELL)
+
+### 3.1 LiDAR Integration
+
+- [ ] RPLIDAR A1 in Docker einbinden
+- [ ] `/scan` Topic verifizieren
+- [ ] TF: `base_link` → `laser_frame`
+
+### 3.2 SLAM Toolbox
+
+- [ ] slam_toolbox konfigurieren
+- [ ] Online Async SLAM starten
+- [ ] Testraum kartieren
+
+### 3.3 Validierung
+
+- [ ] Karte speichern (PGM + YAML)
+- [ ] Karte in RViz2 visualisieren
+- [ ] Lokalisierungsgenauigkeit prüfen
 
 ---
 
 ## 📋 Nächste Phasen (Vorschau)
-
-### Phase 3: SLAM
-
-- [ ] RPLIDAR A1 in ROS 2 integrieren
-- [ ] slam_toolbox konfigurieren
-- [ ] Erste Karte erstellen
-- [ ] Karte speichern
 
 ### Phase 4: Navigation
 
@@ -119,8 +146,8 @@ Woche:  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
         ════════════════════════════════════════════════════
 Phase 0 ████                                                 Fundament     ✅
 Phase 1       ████                                           Motor-Test    ✅
-Phase 2             ████                                     Odometrie     ◄── AKTUELL
-Phase 3                   ██████                             SLAM
+Phase 2             ████                                     Odometrie     ✅
+Phase 3                   ██████                             SLAM          ◄── AKTUELL
 Phase 4                            ██████                    Navigation
 Phase 5                                     ██████           Kamera/AI
 Phase 6                                              ██████  Integration
@@ -139,7 +166,8 @@ Jede Phase ist erst abgeschlossen, wenn:
 - [x] Ein kurzes Protokoll die Ergebnisse festhält
 - [x] Der nächste Schritt klar ist
 
-**Phase 1:** Alle Punkte erfüllt ✅
+**Phase 1:** ✅ Alle Punkte erfüllt
+**Phase 2:** ✅ Alle Punkte erfüllt
 
 ---
 
@@ -147,11 +175,11 @@ Jede Phase ist erst abgeschlossen, wenn:
 
 | Komponente | Version |
 |------------|---------|
-| ESP32 Firmware | v0.3.0-serial |
-| Serial Bridge | v0.3.0 |
+| ESP32 Firmware | **v0.5.0-pid** |
+| Serial Bridge | v0.4.0-odom |
 | Docker Stack | perception + serial_bridge |
-| Git Repo | unger-robotics/amr-platform |
+| Git Repo | ju1-eu/amr-platform |
 
 ---
 
-*Aktualisiert: 2025-12-12 | Phase 1 abgeschlossen*
+*Aktualisiert: 2025-12-12 | Phase 2 abgeschlossen*

@@ -95,18 +95,13 @@
 <div class="main-container">
 <h1 id="amr-entwicklerdokumentation">AMR Entwicklerdokumentation</h1>
 <blockquote>
-<p><strong>Stand:</strong> 2025-12-12 | <strong>Phase:</strong> 1 ✅
-ABGESCHLOSSEN | <strong>Firmware:</strong> v0.3.0-serial</p>
+<p><strong>Stand:</strong> 2025-12-12 | <strong>Phase:</strong> 2 ✅
+ABGESCHLOSSEN | <strong>Firmware:</strong> v0.5.0-pid</p>
 </blockquote>
 <hr />
 <h2 id="aktueller-projektstatus">1. Aktueller Projektstatus</h2>
 <h3 id="was-funktioniert">1.1 Was funktioniert ✅</h3>
 <table class="table table-compact">
-<colgroup>
-<col style="width: 38%" />
-<col style="width: 25%" />
-<col style="width: 35%" />
-</colgroup>
 <thead>
 <tr>
 <th>Komponente</th>
@@ -178,7 +173,7 @@ ABGESCHLOSSEN | <strong>Firmware:</strong> v0.3.0-serial</p>
 <tr>
 <td>Deadzone-Kompensation</td>
 <td>✅</td>
-<td>Auch kleine Geschwindigkeiten funktionieren</td>
+<td>Auch kleine Geschwindigkeiten</td>
 </tr>
 <tr>
 <td>Git-Workflow</td>
@@ -188,27 +183,47 @@ ABGESCHLOSSEN | <strong>Firmware:</strong> v0.3.0-serial</p>
 <tr>
 <td>Docker-Stack</td>
 <td>✅</td>
-<td>perception + serial_bridge Container</td>
+<td>perception + serial_bridge</td>
 </tr>
 <tr>
-<td><strong>Serial-Bridge</strong></td>
+<td>Serial-Bridge</td>
 <td>✅</td>
 <td>ROS 2 /cmd_vel → ESP32</td>
 </tr>
 <tr>
-<td><strong>Teleop</strong></td>
+<td>Teleop</td>
 <td>✅</td>
-<td>Tastatursteuerung funktioniert</td>
+<td>Tastatursteuerung</td>
+</tr>
+<tr>
+<td><strong>Encoder-Kalibrierung</strong></td>
+<td>✅</td>
+<td>374.3 / 373.6 Ticks/Rev</td>
+</tr>
+<tr>
+<td><strong>Odometrie</strong></td>
+<td>✅</td>
+<td>x, y, theta berechnet</td>
+</tr>
+<tr>
+<td><strong>PID-Regelung</strong></td>
+<td>✅</td>
+<td>Kp=13, Ki=5, Kd=0.01</td>
+</tr>
+<tr>
+<td><strong>ROS 2 /odom</strong></td>
+<td>✅</td>
+<td>nav_msgs/Odometry</td>
+</tr>
+<tr>
+<td><strong>TF odom→base_link</strong></td>
+<td>✅</td>
+<td>Broadcast aktiv</td>
 </tr>
 </tbody>
 </table>
 <h3 id="was-blockiert-ist">1.2 Was blockiert ist ⚠️</h3>
 <table class="table table-compact">
-<colgroup>
-<col style="width: 30%" />
-<col style="width: 30%" />
-<col style="width: 40%" />
-</colgroup>
 <thead>
 <tr>
 <th>Problem</th>
@@ -218,17 +233,19 @@ ABGESCHLOSSEN | <strong>Firmware:</strong> v0.3.0-serial</p>
 </thead>
 <tbody>
 <tr>
-<td><strong>micro-ROS Build</strong></td>
+<td>micro-ROS Build</td>
 <td>Python 3.13 inkompatibel</td>
-<td>✅ Serial-Bridge implementiert</td>
+<td>✅ Serial-Bridge</td>
 </tr>
 </tbody>
 </table>
-<h3 id="offene-punkte-phase-2">1.3 Offene Punkte (Phase 2)</h3>
+<h3 id="offene-punkte-phase-3">1.3 Offene Punkte (Phase 3)</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" />Encoder-Kalibrierung</label></li>
-<li><label><input type="checkbox" />Odometrie-Publisher</label></li>
-<li><label><input type="checkbox" />PID-Regelung</label></li>
+<li><label><input type="checkbox" />RPLIDAR in Docker
+integrieren</label></li>
+<li><label><input type="checkbox" />SLAM Toolbox
+konfigurieren</label></li>
+<li><label><input type="checkbox" />Erste Karte erstellen</label></li>
 </ul>
 <hr />
 <h2 id="hardware-konfiguration">2. Hardware-Konfiguration</h2>
@@ -334,23 +351,64 @@ Steuerung</h3>
 </tr>
 </tbody>
 </table>
+<h3 id="encoder-kalibrierung-phase-2">2.3 Encoder-Kalibrierung (Phase
+2)</h3>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Theoretisch</th>
+<th>Kalibriert</th>
+<th>Methode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ticks/Rev Links</td>
+<td>390.5</td>
+<td><strong>374.3</strong></td>
+<td>10-Umdrehungen-Test</td>
+</tr>
+<tr>
+<td>Ticks/Rev Rechts</td>
+<td>390.5</td>
+<td><strong>373.6</strong></td>
+<td>10-Umdrehungen-Test</td>
+</tr>
+<tr>
+<td>Abweichung</td>
+<td>-</td>
+<td>-4.2%</td>
+<td>Getriebespiel</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="software-architektur">3. Software-Architektur</h2>
-<h3 id="serial-bridge-phase-1-lösung">3.1 Serial-Bridge (Phase 1
-Lösung)</h3>
+<h3 id="serial-bridge-mit-odometrie-phase-2">3.1 Serial-Bridge mit
+Odometrie (Phase 2)</h3>
 <pre><code>┌─────────────────────────────────────────────────────────────────────────┐
-│                        Serial-Bridge Architektur                        │
+│                   Serial-Bridge Architektur (v0.5.0)                    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │   ROS 2 (Docker)              USB-Serial              ESP32-S3          │
 │  ┌──────────────┐            ┌────────┐            ┌──────────────┐    │
-│  │ Teleop       │            │ Bridge │            │ Differential │    │
-│  │ /cmd_vel     │───────────▶│ Node   │───────────▶│ Drive        │    │
-│  │ Twist msg    │            │ Python │  V:0.2,    │ Kinematik    │    │
-│  └──────────────┘            └────────┘  W:0.5\n   └──────────────┘    │
-│                               /dev/ttyACM0                              │
+│  │ /cmd_vel     │───────────▶│ Bridge │───────────▶│ PID-Regler   │    │
+│  │ Twist msg    │            │ Node   │  V:0.2,    │ pro Rad      │    │
+│  └──────────────┘            │ Python │  W:0.0\n   └──────────────┘    │
+│                              └────────┘                  │              │
+│  ┌──────────────┐                 ▲                      ▼              │
+│  │ /odom        │◀────────────────│            ┌──────────────┐        │
+│  │ Odometry msg │   ODOM:l,r,     │            │ Encoder ISR  │        │
+│  └──────────────┘   x,y,theta     │            │ Odometrie    │        │
+│                                   │            └──────────────┘        │
+│  ┌──────────────┐                 │                                    │
+│  │ TF: odom →   │◀────────────────┘                                    │
+│  │   base_link  │                                                      │
+│  └──────────────┘                                                      │
+│                               /dev/ttyACM0                             │
 └─────────────────────────────────────────────────────────────────────────┘</code></pre>
-<h3 id="serial-protokoll">3.2 Serial-Protokoll</h3>
+<h3 id="serial-protokoll-v0.5.0">3.2 Serial-Protokoll (v0.5.0)</h3>
 <table class="table table-compact">
 <thead>
 <tr>
@@ -363,22 +421,42 @@ Lösung)</h3>
 <tr>
 <td>Host → ESP32</td>
 <td><code>V:&lt;m/s&gt;,W:&lt;rad/s&gt;\n</code></td>
-<td><code>V:0.20,W:0.50\n</code></td>
+<td><code>V:0.20,W:0.00\n</code></td>
+</tr>
+<tr>
+<td>Host → ESP32</td>
+<td><code>RESET_ODOM\n</code></td>
+<td>Odometrie zurücksetzen</td>
+</tr>
+<tr>
+<td>Host → ESP32</td>
+<td><code>PID:&lt;Kp&gt;,&lt;Ki&gt;,&lt;Kd&gt;\n</code></td>
+<td><code>PID:13.0,5.0,0.01\n</code></td>
+</tr>
+<tr>
+<td>Host → ESP32</td>
+<td><code>DEBUG:ON\n</code> / <code>DEBUG:OFF\n</code></td>
+<td>VEL-Nachrichten</td>
 </tr>
 <tr>
 <td>ESP32 → Host</td>
 <td><code>OK:&lt;v&gt;,&lt;w&gt;</code></td>
-<td><code>OK:0.20,0.50</code></td>
+<td>Bestätigung</td>
+</tr>
+<tr>
+<td>ESP32 → Host</td>
+<td><code>ODOM:&lt;l&gt;,&lt;r&gt;,&lt;x&gt;,&lt;y&gt;,&lt;th&gt;\n</code></td>
+<td>Odometrie (50 Hz)</td>
+</tr>
+<tr>
+<td>ESP32 → Host</td>
+<td><code>VEL:&lt;vl&gt;,&lt;vr&gt;,&lt;pwml&gt;,&lt;pwmr&gt;\n</code></td>
+<td>Debug (10 Hz)</td>
 </tr>
 <tr>
 <td>ESP32 → Host</td>
 <td><code>FAILSAFE:TIMEOUT</code></td>
 <td>Nach 500ms ohne Befehl</td>
-</tr>
-<tr>
-<td>ESP32 → Host</td>
-<td><code>ERR:CMD_OUT_OF_RANGE</code></td>
-<td>Bei ungültigen Werten</td>
 </tr>
 </tbody>
 </table>
@@ -406,15 +484,15 @@ Lösung)</h3>
 </table>
 <hr />
 <h2 id="projekt-struktur">4. Projekt-Struktur</h2>
-<pre><code>amr-platform/                    # GitHub: unger-robotics/amr-platform
+<pre><code>amr-platform/                    # GitHub: ju1-eu/amr-platform
 ├── firmware/                    # micro-ROS Firmware (nicht verwendet)
 ├── firmware_serial/             # Serial-Bridge Firmware ✅
 │   ├── platformio.ini
-│   ├── include/config.h
-│   └── src/main.cpp
+│   ├── include/config.h         # PID: Kp=13, Ki=5, Kd=0.01
+│   └── src/main.cpp             # v0.5.0-pid
 ├── firmware_test/               # Hardware-Test Firmware
 ├── docker/
-│   ├── docker-compose.yml       # perception + serial_bridge
+│   ├── docker-compose.yml
 │   └── perception/
 ├── ros2_ws/
 │   └── src/
@@ -422,12 +500,12 @@ Lösung)</h3>
 │       ├── amr_bringup/
 │       └── amr_serial_bridge/   # ROS 2 Serial Bridge ✅
 │           ├── amr_serial_bridge/
-│           │   └── serial_bridge.py
+│           │   └── serial_bridge.py  # v0.4.0-odom
 │           ├── launch/
 │           ├── package.xml
 │           └── setup.py
 └── scripts/
-    └── deploy.sh</code></pre>
+    └── tune_pid.sh              # PID-Tuning Script</code></pre>
 <hr />
 <h2 id="validierte-test-befehle">5. Validierte Test-Befehle</h2>
 <h3 id="esp32-firmware-flashen-auf-mac">5.1 ESP32 Firmware flashen (auf
@@ -436,99 +514,108 @@ Mac)</h3>
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /Users/jan/daten/start/IoT/AMR/amr-platform/firmware_serial</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pio</span> run <span class="at">--target</span> upload</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">pio</span> device monitor</span></code></pre></div>
-<p><strong>Serial-Befehle:</strong></p>
-<ul>
-<li><code>V:0.2,W:0.0</code> → Vorwärts</li>
-<li><code>V:0.0,W:0.5</code> → Drehen</li>
-<li><code>V:0.0,W:0.0</code> → Stopp</li>
-</ul>
-<h3 id="docker-stack-auf-pi">5.2 Docker-Stack (auf Pi)</h3>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> pi@rover</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/amr-platform/docker</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose up <span class="at">-d</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose logs <span class="at">-f</span> serial_bridge</span></code></pre></div>
-<h3 id="teleop-test">5.3 Teleop-Test</h3>
+<p><strong>Erwartete Ausgabe:</strong></p>
+<pre><code>AMR-ESP32 v0.5.0-pid ready
+PID: Kp=13.00 Ki=5.00 Kd=0.01
+Commands: V:v,W:w | RESET_ODOM | PID:Kp,Ki,Kd | DEBUG:ON/OFF</code></pre>
+<h3 id="pid-tuning-auf-pi">5.2 PID-Tuning (auf Pi)</h3>
 <div class="sourceCode" id="cb5"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Terminal 1: Serial Bridge läuft bereits via Docker</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Terminal 2: Teleop starten</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> amr_perception bash</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /opt/ros/jazzy/setup.bash</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run teleop_twist_keyboard teleop_twist_keyboard</span></code></pre></div>
-<p><strong>Tasten:</strong> <code>i</code>=Vorwärts,
-<code>,</code>=Rückwärts, <code>j</code>/<code>l</code>=Drehen,
-<code>k</code>=Stopp</p>
-<h3 id="git-workflow">5.4 Git-Workflow</h3>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> pi@rover</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/amr-platform/docker <span class="kw">&amp;&amp;</span> <span class="ex">docker</span> compose down</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">~/tune_pid.sh</span></span></code></pre></div>
+<p><strong>Befehle im Script:</strong></p>
+<ul>
+<li><code>test</code> – 1m Geradeaus-Test</li>
+<li><code>p 13.0</code> – Kp setzen</li>
+<li><code>i 5.0</code> – Ki setzen</li>
+<li><code>debug</code> – Velocity-Ausgabe</li>
+</ul>
+<h3 id="docker-stack-auf-pi">5.3 Docker-Stack (auf Pi)</h3>
 <div class="sourceCode" id="cb6"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Mac: Entwickeln</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /Users/jan/daten/start/IoT/AMR/amr-platform</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> pull origin main</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ... arbeiten ...</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> add .</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit <span class="at">-m</span> <span class="st">&quot;feat: Beschreibung&quot;</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> push origin main</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Pi: Deployen</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> pi@rover</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/amr-platform</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> pull origin main</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose <span class="at">-f</span> docker/docker-compose.yml up <span class="at">-d</span></span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> pi@rover</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/amr-platform/docker</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose up <span class="at">-d</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose logs <span class="at">-f</span> serial_bridge</span></code></pre></div>
+<h3 id="teleop-test">5.4 Teleop-Test</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> amr_perception bash</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /opt/ros/jazzy/setup.bash</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run teleop_twist_keyboard teleop_twist_keyboard</span></code></pre></div>
 <hr />
-<h2 id="phase-1-abschluss-protokoll">6. Phase 1 Abschluss-Protokoll</h2>
-<h3 id="durchgeführte-tests">6.1 Durchgeführte Tests</h3>
+<h2 id="phase-2-abschluss-protokoll">6. Phase 2 Abschluss-Protokoll</h2>
+<h3 id="pid-tuning-ergebnisse">6.1 PID-Tuning Ergebnisse</h3>
 <table class="table table-compact">
 <thead>
 <tr>
-<th>Test</th>
-<th>Ergebnis</th>
-<th>Datum</th>
+<th>Parameter</th>
+<th>Startwert</th>
+<th>Endwert</th>
+<th>Methode</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Motor vorwärts</td>
-<td>✅ Beide Räder drehen</td>
-<td>2025-12-12</td>
+<td>Kp</td>
+<td>2.0</td>
+<td><strong>13.0</strong></td>
+<td>Inkrementell erhöht</td>
 </tr>
 <tr>
-<td>Motor rückwärts</td>
-<td>✅ Beide Räder drehen</td>
-<td>2025-12-12</td>
+<td>Ki</td>
+<td>0.5</td>
+<td><strong>5.0</strong></td>
+<td>Stationären Fehler eliminiert</td>
 </tr>
 <tr>
-<td>Differential Drive links</td>
-<td>✅ Roboter dreht</td>
-<td>2025-12-12</td>
-</tr>
-<tr>
-<td>Differential Drive rechts</td>
-<td>✅ Roboter dreht</td>
-<td>2025-12-12</td>
-</tr>
-<tr>
-<td>Failsafe Timeout</td>
-<td>✅ Motoren stoppen nach 500ms</td>
-<td>2025-12-12</td>
-</tr>
-<tr>
-<td>Teleop via Docker</td>
-<td>✅ Tastatursteuerung funktioniert</td>
-<td>2025-12-12</td>
+<td>Kd</td>
+<td>0.01</td>
+<td><strong>0.01</strong></td>
+<td>Beibehalten (kein Überschwingen)</td>
 </tr>
 </tbody>
 </table>
-<h3 id="lessons-learned">6.2 Lessons Learned</h3>
+<h3 id="bodentest-ergebnisse-1m-0.2-ms">6.2 Bodentest-Ergebnisse (1m @
+0.2 m/s)</h3>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Metrik</th>
+<th>Open-Loop</th>
+<th>Mit PID</th>
+<th>Verbesserung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Distanz x</td>
+<td>1.158 m</td>
+<td>0.984 m</td>
+<td>Fehler: 16% → 1.6%</td>
+</tr>
+<tr>
+<td>Drift y</td>
+<td>14 cm</td>
+<td>0.5 cm</td>
+<td><strong>28× besser</strong></td>
+</tr>
+<tr>
+<td>Encoder L/R</td>
+<td>2381/2470</td>
+<td>1802/1802</td>
+<td><strong>Synchron</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="lessons-learned">6.3 Lessons Learned</h3>
 <ol type="1">
-<li><strong>micro-ROS + Python 3.13 = Inkompatibel</strong> →
-Serial-Bridge als Workaround</li>
-<li><strong>Deadzone-Kompensation notwendig</strong> für kleine
-Geschwindigkeiten</li>
-<li><strong>ESP32 Arduino 2.x API</strong> verwendet
-<code>ledcSetup()</code> + <code>ledcAttachPin()</code>, nicht
-<code>ledcAttach()</code></li>
-<li><strong>Docker <code>ros:jazzy-ros-base</code></strong> hat kein
-pip3 → <code>apt install python3-serial</code></li>
+<li><strong>Encoder-Kalibrierung essentiell</strong> – Theoretische
+Werte (390.5) weichen 4% ab</li>
+<li><strong>PID-Tuning iterativ</strong> – Kp zuerst, dann Ki für
+stationären Fehler</li>
+<li><strong>Heartbeat für Tests</strong> – Failsafe (500ms) erfordert
+kontinuierliche Befehle</li>
+<li><strong>Bodentest vs. aufgebockt</strong> – Schlupf beeinflusst
+Ergebnisse</li>
 </ol>
 <hr />
 <h2 id="referenzen">7. Referenzen</h2>
@@ -561,11 +648,6 @@ pip3 → <code>apt install python3-serial</code></li>
 <hr />
 <h2 id="changelog">8. Changelog</h2>
 <table class="table table-compact">
-<colgroup>
-<col style="width: 26%" />
-<col style="width: 34%" />
-<col style="width: 38%" />
-</colgroup>
 <thead>
 <tr>
 <th>Datum</th>
@@ -576,47 +658,38 @@ pip3 → <code>apt install python3-serial</code></li>
 <tbody>
 <tr>
 <td>2025-12-12</td>
-<td>v0.3.0-serial</td>
-<td><strong>Phase 1 abgeschlossen</strong></td>
+<td>v0.5.0-pid</td>
+<td><strong>Phase 2 abgeschlossen</strong></td>
+</tr>
+<tr>
+<td>2025-12-12</td>
+<td>v0.5.0-pid</td>
+<td>PID-Tuning: Kp=13, Ki=5, Kd=0.01</td>
+</tr>
+<tr>
+<td>2025-12-12</td>
+<td>v0.4.0-odom</td>
+<td>Odometrie + ROS 2 /odom Publisher</td>
+</tr>
+<tr>
+<td>2025-12-12</td>
+<td>v0.4.0-odom</td>
+<td>Encoder-Kalibrierung: 374.3/373.6</td>
 </tr>
 <tr>
 <td>2025-12-12</td>
 <td>v0.3.0-serial</td>
-<td>Serial-Bridge Firmware mit Deadzone-Kompensation</td>
-</tr>
-<tr>
-<td>2025-12-12</td>
-<td>-</td>
-<td>ROS 2 Serial Bridge Package erstellt</td>
-</tr>
-<tr>
-<td>2025-12-12</td>
-<td>-</td>
-<td>Docker Integration (serial_bridge Container)</td>
-</tr>
-<tr>
-<td>2025-12-12</td>
-<td>-</td>
-<td>Teleop-Test erfolgreich</td>
-</tr>
-<tr>
-<td>2025-12-12</td>
-<td>-</td>
-<td>Git-Workflow Mac ↔︎ GitHub ↔︎ Pi eingerichtet</td>
+<td>Phase 1 abgeschlossen</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="nächste-schritte-phase-2">9. Nächste Schritte: Phase 2</h2>
+<h2 id="nächste-schritte-phase-3">9. Nächste Schritte: Phase 3</h2>
 <ol type="1">
-<li><strong>Encoder-Kalibrierung</strong> (10-Umdrehungen-Test)</li>
-<li><strong>Odometrie auf ESP32</strong> berechnen</li>
-<li><strong>Serial-Protokoll erweitern:</strong>
-<code>ODOM:left_ticks,right_ticks\n</code></li>
-<li><strong>ROS 2 <code>/odom</code> Publisher</strong> in
-Bridge-Node</li>
-<li><strong>TF-Broadcast:</strong> <code>odom</code> →
-<code>base_link</code></li>
+<li><strong>RPLIDAR A1</strong> in Docker Container integrieren</li>
+<li><strong>slam_toolbox</strong> konfigurieren</li>
+<li><strong>Testraum kartieren</strong> – erste Karte erstellen</li>
+<li><strong>Karte speichern</strong> – PGM + YAML</li>
 </ol>
 <hr />
 <p><em>Dokumentation erstellt: 2025-12-12 | Autor: Jan Unger | FH

@@ -97,8 +97,8 @@
 <h2 id="vom-schaltplan-zur-autonomen-navigation">Vom Schaltplan zur
 autonomen Navigation</h2>
 <blockquote>
-<p><strong>Version:</strong> 1.2 | <strong>Stand:</strong> 2025-12-12 |
-<strong>Firmware:</strong> v0.3.0-serial</p>
+<p><strong>Version:</strong> 1.3 | <strong>Stand:</strong> 2025-12-12 |
+<strong>Firmware:</strong> v0.5.0-pid</p>
 </blockquote>
 <hr />
 <h2
@@ -118,10 +118,10 @@ hinzukommt.</p>
 ┌──────────────────┐          Phase 1: ──────────────────► ✅
 │    Navigation    │                   Motor + Failsafe
 ├──────────────────┤
-│   Wahrnehmung    │          Phase 2: ──────────────────► ◄── AKTUELL
-├──────────────────┤                   + Encoder + Odom
+│   Wahrnehmung    │          Phase 2: ──────────────────► ✅
+├──────────────────┤                   + Encoder + Odom + PID
 │    Firmware      │
-├──────────────────┤          Phase 3: ──────────────────►
+├──────────────────┤          Phase 3: ──────────────────► ◄── AKTUELL
 │    Hardware      │                   + LiDAR + SLAM
 └──────────────────┘
        ↓                      Phase 4: ──────────────────►
@@ -191,16 +191,6 @@ Motor funktioniert.</p>
 <p><strong>Problem:</strong> micro-ROS Build scheitert an Python 3.13
 (Raspberry Pi OS Bookworm)</p>
 <p><strong>Lösung:</strong> Serial-Bridge als Workaround</p>
-<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
-│                        Serial-Bridge Architektur                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│   ROS 2 (Docker)              USB-Serial              ESP32-S3          │
-│  ┌──────────────┐            ┌────────┐            ┌──────────────┐    │
-│  │ /cmd_vel     │───────────▶│ Bridge │───────────▶│ Differential │    │
-│  │ Twist msg    │            │ Node   │  V:0.2,    │ Drive        │    │
-│  └──────────────┘            │ Python │  W:0.5\n   │ Kinematik    │    │
-│                              └────────┘            └──────────────┘    │
-└─────────────────────────────────────────────────────────────────────────┘</code></pre>
 <h3 id="cytron-mdd3a-dual-pwm-steuerung">1.3 Cytron MDD3A – Dual-PWM
 Steuerung</h3>
 <blockquote>
@@ -238,88 +228,44 @@ Steuerung</h3>
 </tr>
 </tbody>
 </table>
-<h3 id="deadzone-kompensation">1.4 Deadzone-Kompensation</h3>
-<p>Kleine Geschwindigkeiten (z.B. bei Drehung mit W=0.5) fielen unter
-die Motor-Deadzone. Lösung:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> hal_motor_set<span class="op">(</span><span class="dt">uint8_t</span> ch_a<span class="op">,</span> <span class="dt">uint8_t</span> ch_b<span class="op">,</span> <span class="dt">float</span> speed<span class="op">)</span> <span class="op">{</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Unter 5% ignorieren</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>abs<span class="op">(</span>speed<span class="op">)</span> <span class="op">&lt;</span> <span class="fl">0.05</span><span class="bu">f</span><span class="op">)</span> <span class="op">{</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        ledcWrite<span class="op">(</span>ch_a<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        ledcWrite<span class="op">(</span>ch_b<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span><span class="op">;</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Deadzone-Kompensation: Skaliere auf [PWM_DEADZONE, PWM_MAX]</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> pwm <span class="op">=</span> PWM_DEADZONE <span class="op">+</span> <span class="op">(</span><span class="dt">int</span><span class="op">)(</span>abs<span class="op">(</span>speed<span class="op">)</span> <span class="op">*</span> <span class="op">(</span>MOTOR_PWM_MAX <span class="op">-</span> PWM_DEADZONE<span class="op">));</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ...</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<h3 id="validierung">1.5 Validierung</h3>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Teleop starten</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> amr_perception bash</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /opt/ros/jazzy/setup.bash</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> run teleop_twist_keyboard teleop_twist_keyboard</span></code></pre></div>
-<p><strong>Tasten:</strong> <code>i</code>=Vorwärts,
-<code>,</code>=Rückwärts, <code>j</code>/<code>l</code>=Drehen,
-<code>k</code>=Stopp</p>
 <p><strong>Meilenstein Phase 1:</strong> ✅ Teleop funktioniert,
 Failsafe aktiv.</p>
 <hr />
-<h2 id="phase-2-bewegung-mit-feedback-woche-56-aktuell">Phase 2:
-Bewegung mit Feedback (Woche 5–6) ◄── AKTUELL</h2>
-<p><strong>Ziel:</strong> Der Roboter weiß, wo er ist (Odometrie). Wir
-können ihn per Tastatur steuern und seine Position in RViz2 sehen.</p>
-<h3 id="encoder-integration">2.1 Encoder-Integration</h3>
-<p>Die Encoder liefern Impulse pro Radumdrehung. Der ESP32 zählt diese
-in einem Interrupt.</p>
-<p><strong>Pin-Belegung:</strong></p>
+<h2 id="phase-2-bewegung-mit-feedback-woche-56">Phase 2: Bewegung mit
+Feedback (Woche 5–6) ✅</h2>
+<p><strong>Ziel:</strong> Der Roboter weiß, wo er ist (Odometrie) und
+fährt präzise geradeaus (PID-Regelung).</p>
+<p><strong>Status:</strong> ✅ Abgeschlossen (2025-12-12)</p>
+<h3 id="encoder-kalibrierung">2.1 Encoder-Kalibrierung</h3>
+<p><strong>Methode:</strong> 10-Umdrehungen-Test mit
+<code>calibration_encoder.cpp</code></p>
 <table class="table table-compact">
 <thead>
 <tr>
-<th>Encoder</th>
-<th>Pin</th>
-<th>Interrupt</th>
+<th>Rad</th>
+<th>Ticks (10 Umdrehungen)</th>
+<th>Ticks/Rev</th>
+<th>Theoretisch</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Links</td>
-<td>D6</td>
-<td>RISING</td>
+<td>3743</td>
+<td><strong>374.3</strong></td>
+<td>390.5</td>
 </tr>
 <tr>
 <td>Rechts</td>
-<td>D7</td>
-<td>RISING</td>
+<td>3736</td>
+<td><strong>373.6</strong></td>
+<td>390.5</td>
 </tr>
 </tbody>
 </table>
-<p><strong>ISR:</strong></p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">volatile</span> <span class="dt">long</span> encoder_left_ticks <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="at">volatile</span> <span class="dt">long</span> encoder_right_ticks <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> IRAM_ATTR encoder_left_isr<span class="op">()</span> <span class="op">{</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    encoder_left_ticks<span class="op">++;</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> IRAM_ATTR encoder_right_isr<span class="op">()</span> <span class="op">{</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    encoder_right_ticks<span class="op">++;</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<h3 id="encoder-kalibrierung">2.2 Encoder-Kalibrierung</h3>
-<ol type="1">
-<li>Rad markieren (Strich auf Reifen und Chassis)</li>
-<li>Kalibrierungs-Sketch hochladen</li>
-<li>Rad <strong>exakt 10 Umdrehungen</strong> von Hand drehen</li>
-<li>Ticks ablesen und durch 10 teilen</li>
-<li><strong>Für beide Motoren einzeln durchführen!</strong></li>
-</ol>
-<p>Werte in <code>config.h</code> eintragen:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode cpp"><code class="sourceCode cpp"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define TICKS_PER_REV_LEFT     </span><span class="fl">390.5</span><span class="bu">f</span><span class="pp">  </span><span class="co">// Kalibriert</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#define TICKS_PER_REV_RIGHT    </span><span class="fl">392.0</span><span class="bu">f</span><span class="pp">  </span><span class="co">// Kalibriert</span></span></code></pre></div>
-<h3 id="odometrie-berechnung">2.3 Odometrie-Berechnung</h3>
+<p>Die kalibrierten Werte weichen 4,2 % vom theoretischen Wert ab
+(Getriebespiel, Toleranzen).</p>
+<h3 id="odometrie-berechnung">2.2 Odometrie-Berechnung</h3>
 <p><strong>Differentialkinematik:</strong></p>
 <pre><code>d_left  = (delta_ticks_left / TICKS_PER_REV) × WHEEL_CIRCUMFERENCE
 d_right = (delta_ticks_right / TICKS_PER_REV) × WHEEL_CIRCUMFERENCE
@@ -330,32 +276,122 @@ d_theta  = (d_right - d_left) / WHEEL_BASE
 x += d_center × cos(theta + d_theta/2)
 y += d_center × sin(theta + d_theta/2)
 theta += d_theta</code></pre>
-<h3 id="serial-protokoll-erweitern">2.4 Serial-Protokoll erweitern</h3>
-<pre><code>ESP32 → Host: ODOM:&lt;left_ticks&gt;,&lt;right_ticks&gt;,&lt;x&gt;,&lt;y&gt;,&lt;theta&gt;\n</code></pre>
-<h3 id="ros-2-publisher">2.5 ROS 2 Publisher</h3>
+<h3 id="pid-geschwindigkeitsregelung">2.3
+PID-Geschwindigkeitsregelung</h3>
+<p><strong>Problem (Open-Loop):</strong></p>
+<ul>
+<li>Distanzfehler: 16 % (1.158 m statt 1.0 m)</li>
+<li>Drift: 14 cm nach links (rechtes Rad 3,7 % schneller)</li>
+</ul>
+<p><strong>Lösung:</strong> Closed-Loop PID-Regelung pro Rad</p>
+<pre><code>                    ┌─────────────────────────────────────────────────────┐
+                    │              Pro Rad (links/rechts)                 │
+                    │                                                     │
+  Soll-v ──────────►│  ┌───────┐      ┌───────┐      ┌───────┐          │
+  (cmd_vel)         │  │  PID  │──────│  PWM  │──────│ Motor │──────┬───│───► Rad
+                    │  │Regler │      │Treiber│      │       │      │   │
+                    │  └───────┘      └───────┘      └───────┘      │   │
+                    │       ▲                                       │   │
+                    │       │         ┌───────────┐                 │   │
+                    │       └─────────│  Encoder  │◄────────────────┘   │
+                    │         Ist-v   │  → v_ist  │                     │
+                    │                 └───────────┘                     │
+                    └─────────────────────────────────────────────────────┘</code></pre>
+<h3 id="pid-tuning-ergebnis">2.4 PID-Tuning Ergebnis</h3>
+<p><strong>Tuning-Methode:</strong> Manuell (inkrementell) am
+2025-12-12</p>
+<table class="table table-compact">
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 26%" />
+<col style="width: 21%" />
+<col style="width: 24%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Startwert</th>
+<th>Endwert</th>
+<th>Funktion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Kp</strong></td>
+<td>2.0</td>
+<td><strong>13.0</strong></td>
+<td>Hauptkorrektur – erhöht bis Soll-v erreicht</td>
+</tr>
+<tr>
+<td><strong>Ki</strong></td>
+<td>0.5</td>
+<td><strong>5.0</strong></td>
+<td>Stationärer Fehler – eliminiert Drift</td>
+</tr>
+<tr>
+<td><strong>Kd</strong></td>
+<td>0.01</td>
+<td><strong>0.01</strong></td>
+<td>Dämpfung – kein Überschwingen beobachtet</td>
+</tr>
+</tbody>
+</table>
+<h3 id="validierung-bodentest-1m-0.2-ms">2.5 Validierung (Bodentest 1m @
+0.2 m/s)</h3>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Metrik</th>
+<th>Open-Loop</th>
+<th>Mit PID</th>
+<th>Verbesserung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Distanz x</td>
+<td>1.158 m</td>
+<td><strong>0.984 m</strong></td>
+<td>Fehler: 16% → <strong>1.6%</strong></td>
+</tr>
+<tr>
+<td>Drift y</td>
+<td>14 cm</td>
+<td><strong>0.5 cm</strong></td>
+<td><strong>28× besser</strong></td>
+</tr>
+<tr>
+<td>Encoder L/R</td>
+<td>2381/2470</td>
+<td><strong>1802/1802</strong></td>
+<td>Synchron!</td>
+</tr>
+</tbody>
+</table>
+<h3 id="serial-protokoll-erweitert">2.6 Serial-Protokoll
+(erweitert)</h3>
+<pre><code>ESP32 → Host: ODOM:&lt;left_ticks&gt;,&lt;right_ticks&gt;,&lt;x&gt;,&lt;y&gt;,&lt;theta&gt;\n
+Host → ESP32: PID:&lt;Kp&gt;,&lt;Ki&gt;,&lt;Kd&gt;\n   (Live-Tuning)
+Host → ESP32: DEBUG:ON/OFF\n         (Velocity-Nachrichten)</code></pre>
+<h3 id="ros-2-integration">2.7 ROS 2 Integration</h3>
 <ul>
 <li><code>/odom</code> (Typ: <code>nav_msgs/Odometry</code>) – Position
 und Orientierung</li>
 <li>TF-Broadcast: <code>odom</code> → <code>base_link</code></li>
 </ul>
-<h3 id="validierung-1">2.6 Validierung</h3>
-<ul>
-<li>Roboter 1 m fahren → Odometrie muss ~1 m anzeigen (±5%)</li>
-<li>RViz2: Odometrie-Pfad visualisieren</li>
-</ul>
-<p><strong>Meilenstein Phase 2:</strong> Roboter fährt per Tastatur,
-Odometrie in RViz2 stimmt auf ±5 %.</p>
+<p><strong>Meilenstein Phase 2:</strong> ✅ Odometrie &lt;2% Fehler,
+Drift &lt;1cm, PID-Regelung aktiv.</p>
 <hr />
-<h2 id="phase-3-sehen-lernen-lidar-slam-woche-79">Phase 3: Sehen lernen
-– LiDAR &amp; SLAM (Woche 7–9)</h2>
+<h2 id="phase-3-sehen-lernen-lidar-slam-woche-79-aktuell">Phase 3: Sehen
+lernen – LiDAR &amp; SLAM (Woche 7–9) ◄── AKTUELL</h2>
 <p><strong>Ziel:</strong> Der Roboter baut eine Karte seiner
 Umgebung.</p>
 <h3 id="lidar-treiber">3.1 LiDAR-Treiber</h3>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch rplidar_ros rplidar_a1_launch.py</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch rplidar_ros rplidar_a1_launch.py</span></code></pre></div>
 <h3 id="slam-toolbox">3.2 SLAM-Toolbox</h3>
-<div class="sourceCode" id="cb10"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch slam_toolbox online_async_launch.py params_file:=slam_params.yaml</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> launch slam_toolbox online_async_launch.py params_file:=slam_params.yaml</span></code></pre></div>
 <p><strong>Meilenstein Phase 3:</strong> Eine speicherbare Karte des
 Testraums existiert.</p>
 <hr />
@@ -442,13 +478,13 @@ automatisch, Demo-fähig.</p>
 <td>libcamera-Inkompatibilität</td>
 <td>Niedrig</td>
 <td>Hoch</td>
-<td>Raspberry Pi OS ✅</td>
+<td>✅ Raspberry Pi OS</td>
 </tr>
 <tr>
 <td>Odometrie-Drift</td>
-<td>Hoch</td>
-<td>Mittel</td>
-<td>Kalibrierung, später EKF</td>
+<td><del>Hoch</del></td>
+<td><del>Mittel</del></td>
+<td>✅ <strong>PID-Regelung</strong></td>
 </tr>
 <tr>
 <td>Hailo-Treiber instabil</td>
@@ -463,13 +499,13 @@ automatisch, Demo-fähig.</p>
 <td>Viel Zeit einplanen</td>
 </tr>
 <tr>
-<td><strong>micro-ROS inkompatibel</strong></td>
+<td>micro-ROS inkompatibel</td>
 <td><del>Hoch</del></td>
 <td><del>Hoch</del></td>
 <td>✅ <strong>Serial-Bridge</strong></td>
 </tr>
 <tr>
-<td><strong>MDD3A-Ansteuerung</strong></td>
+<td>MDD3A-Ansteuerung</td>
 <td><del>Hoch</del></td>
 <td><del>Hoch</del></td>
 <td>✅ <strong>Dual-PWM</strong></td>
@@ -482,8 +518,8 @@ automatisch, Demo-fähig.</p>
         ════════════════════════════════════════════════════
 Phase 0 ████                                                 Fundament     ✅
 Phase 1       ████                                           Motor-Test    ✅
-Phase 2             ████                                     Odometrie     ◄── AKTUELL
-Phase 3                   ██████                             SLAM
+Phase 2             ████                                     Odometrie     ✅
+Phase 3                   ██████                             SLAM          ◄── AKTUELL
 Phase 4                            ██████                    Navigation
 Phase 5                                     ██████           Kamera/AI
 Phase 6                                              ██████  Integration
@@ -503,12 +539,13 @@ Ergebnisse festhält</label></li>
 <li><label><input type="checkbox" checked="" />Der nächste Schritt klar
 ist</label></li>
 </ul>
-<p><strong>Phase 1:</strong> ✅ Alle Punkte erfüllt</p>
+<p><strong>Phase 1:</strong> ✅ Alle Punkte erfüllt <strong>Phase
+2:</strong> ✅ Alle Punkte erfüllt</p>
 <hr />
 <p><em>Dieser Plan folgt dem Prinzip: Jede Woche ein lauffähiges System.
 Lieber weniger Features, die funktionieren, als viele Features, die
 zusammen crashen.</em></p>
-<p><em>Aktualisiert: 2025-12-12 | Firmware: v0.3.0-serial | Phase 1
+<p><em>Aktualisiert: 2025-12-12 | Firmware: v0.5.0-pid | Phase 2
 abgeschlossen</em></p>
 </div>
 </body>

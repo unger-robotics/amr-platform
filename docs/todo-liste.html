@@ -31,7 +31,7 @@
 <h1 id="todo-liste-amr-projekt">ToDo-Liste AMR-Projekt</h1>
 <blockquote>
 <p><strong>Stand:</strong> 2025-12-12 | <strong>Aktuelle Phase:</strong>
-2 (Odometrie)</p>
+3 (SLAM)</p>
 </blockquote>
 <hr />
 <h2 id="phasen-übersicht">📊 Phasen-Übersicht</h2>
@@ -52,17 +52,17 @@
 <tr>
 <td>Phase 1</td>
 <td>Motor-Test + Teleop</td>
-<td>✅ <strong>Abgeschlossen</strong></td>
+<td>✅ Abgeschlossen</td>
 </tr>
 <tr>
 <td>Phase 2</td>
-<td>Encoder + Odometrie</td>
-<td>◄── <strong>AKTUELL</strong></td>
+<td>Encoder + Odometrie + PID</td>
+<td>✅ <strong>Abgeschlossen</strong></td>
 </tr>
 <tr>
 <td>Phase 3</td>
 <td>LiDAR + SLAM</td>
-<td>⬜</td>
+<td>◄── <strong>AKTUELL</strong></td>
 </tr>
 <tr>
 <td>Phase 4</td>
@@ -109,59 +109,136 @@ Tastatursteuerung</label></li>
 <li><strong>Lösung:</strong> Serial-Bridge statt micro-ROS Agent</li>
 </ul>
 <hr />
-<h2 id="phase-2-odometrie-aktuell">🎯 Phase 2: Odometrie (AKTUELL)</h2>
+<h2 id="phase-2-abgeschlossen-2025-12-12">✅ Phase 2: Abgeschlossen
+(2025-12-12)</h2>
 <h3 id="encoder-kalibrierung">2.1 Encoder-Kalibrierung</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" />Kalibrierungs-Sketch auf ESP32
-flashen</label></li>
-<li><label><input type="checkbox" />Linkes Rad: 10 Umdrehungen drehen,
-Ticks zählen</label></li>
-<li><label><input type="checkbox" />Rechtes Rad: 10 Umdrehungen drehen,
-Ticks zählen</label></li>
-<li><label><input type="checkbox" /><code>TICKS_PER_REV_LEFT</code> in
-config.h eintragen</label></li>
-<li><label><input type="checkbox" /><code>TICKS_PER_REV_RIGHT</code> in
-config.h eintragen</label></li>
+<li><label><input type="checkbox" checked="" />Kalibrierungs-Sketch auf
+ESP32 flashen</label></li>
+<li><label><input type="checkbox" checked="" />Linkes Rad: 10
+Umdrehungen → 3743 Ticks</label></li>
+<li><label><input type="checkbox" checked="" />Rechtes Rad: 10
+Umdrehungen → 3736 Ticks</label></li>
+<li><label><input type="checkbox"
+checked="" /><code>TICKS_PER_REV_LEFT = 374.3f</code> in
+config.h</label></li>
+<li><label><input type="checkbox"
+checked="" /><code>TICKS_PER_REV_RIGHT = 373.6f</code> in
+config.h</label></li>
 </ul>
 <h3 id="esp32-firmware-erweitern">2.2 ESP32 Firmware erweitern</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" />Encoder-ISR implementieren (D6,
-D7)</label></li>
-<li><label><input type="checkbox" />Odometrie-Berechnung (x, y,
-theta)</label></li>
-<li><label><input type="checkbox" />Serial-Protokoll erweitern:
-<code>ODOM:left,right,x,y,theta\n</code></label></li>
-<li><label><input type="checkbox" />Tick-Counter zurücksetzen bei
-Reset</label></li>
+<li><label><input type="checkbox" checked="" />Encoder-ISR
+implementieren (D6, D7)</label></li>
+<li><label><input type="checkbox" checked="" />Odometrie-Berechnung (x,
+y, theta)</label></li>
+<li><label><input type="checkbox" checked="" />Serial-Protokoll:
+<code>ODOM:&lt;l&gt;,&lt;r&gt;,&lt;x&gt;,&lt;y&gt;,&lt;theta&gt;\n</code></label></li>
+<li><label><input type="checkbox" checked="" /><code>RESET_ODOM</code>
+Befehl</label></li>
+<li><label><input type="checkbox"
+checked="" />PID-Geschwindigkeitsregelung (Kp=13, Ki=5,
+Kd=0.01)</label></li>
+<li><label><input type="checkbox" checked="" />Live-Tuning:
+<code>PID:&lt;Kp&gt;,&lt;Ki&gt;,&lt;Kd&gt;</code> Befehl</label></li>
+<li><label><input type="checkbox" checked="" />Debug-Modus:
+<code>DEBUG:ON/OFF</code> für VEL-Nachrichten</label></li>
 </ul>
 <h3 id="ros-2-bridge-erweitern">2.3 ROS 2 Bridge erweitern</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" />Odometrie parsen</label></li>
-<li><label><input type="checkbox" /><code>/odom</code> Topic publizieren
-(nav_msgs/Odometry)</label></li>
-<li><label><input type="checkbox" />TF-Broadcast: <code>odom</code> →
-<code>base_link</code></label></li>
+<li><label><input type="checkbox" checked="" />Odometrie
+parsen</label></li>
+<li><label><input type="checkbox" checked="" /><code>/odom</code> Topic
+publizieren (nav_msgs/Odometry)</label></li>
+<li><label><input type="checkbox" checked="" />TF-Broadcast:
+<code>odom</code> → <code>base_link</code></label></li>
 </ul>
-<h3 id="validierung">2.4 Validierung</h3>
+<h3 id="validierung-bodentest">2.4 Validierung (Bodentest)</h3>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Test</th>
+<th>Soll</th>
+<th>Ist</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1m Geradeaus</td>
+<td>x=1.0m</td>
+<td>x=0.984m</td>
+<td>✅ 1.6% Fehler</td>
+</tr>
+<tr>
+<td>Drift</td>
+<td>y=0.0m</td>
+<td>y=0.005m</td>
+<td>✅ 0.5cm</td>
+</tr>
+<tr>
+<td>Encoder-Sync</td>
+<td>gleich</td>
+<td>1802/1802</td>
+<td>✅ Perfekt</td>
+</tr>
+</tbody>
+</table>
+<h3 id="vergleich-open-loop-vs.-pid">Vergleich Open-Loop vs. PID</h3>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Metrik</th>
+<th>Open-Loop</th>
+<th>Mit PID</th>
+<th>Verbesserung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Distanzfehler</td>
+<td>16%</td>
+<td>1.6%</td>
+<td><strong>10× besser</strong></td>
+</tr>
+<tr>
+<td>Drift</td>
+<td>14 cm</td>
+<td>0.5 cm</td>
+<td><strong>28× besser</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="phase-3-slam-aktuell">🎯 Phase 3: SLAM (AKTUELL)</h2>
+<h3 id="lidar-integration">3.1 LiDAR Integration</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" />1 m vorwärts fahren → Odometrie
-zeigt ~1 m (±5%)</label></li>
-<li><label><input type="checkbox" />360° drehen → Odometrie zeigt ~360°
-(±10%)</label></li>
-<li><label><input type="checkbox" />RViz2: Odometrie-Pfad
+<li><label><input type="checkbox" />RPLIDAR A1 in Docker
+einbinden</label></li>
+<li><label><input type="checkbox" /><code>/scan</code> Topic
+verifizieren</label></li>
+<li><label><input type="checkbox" />TF: <code>base_link</code> →
+<code>laser_frame</code></label></li>
+</ul>
+<h3 id="slam-toolbox">3.2 SLAM Toolbox</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />slam_toolbox
+konfigurieren</label></li>
+<li><label><input type="checkbox" />Online Async SLAM
+starten</label></li>
+<li><label><input type="checkbox" />Testraum kartieren</label></li>
+</ul>
+<h3 id="validierung">3.3 Validierung</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Karte speichern (PGM +
+YAML)</label></li>
+<li><label><input type="checkbox" />Karte in RViz2
 visualisieren</label></li>
+<li><label><input type="checkbox" />Lokalisierungsgenauigkeit
+prüfen</label></li>
 </ul>
 <hr />
 <h2 id="nächste-phasen-vorschau">📋 Nächste Phasen (Vorschau)</h2>
-<h3 id="phase-3-slam">Phase 3: SLAM</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" />RPLIDAR A1 in ROS 2
-integrieren</label></li>
-<li><label><input type="checkbox" />slam_toolbox
-konfigurieren</label></li>
-<li><label><input type="checkbox" />Erste Karte erstellen</label></li>
-<li><label><input type="checkbox" />Karte speichern</label></li>
-</ul>
 <h3 id="phase-4-navigation">Phase 4: Navigation</h3>
 <ul class="task-list">
 <li><label><input type="checkbox" />Nav2 Stack
@@ -239,8 +316,8 @@ automatisieren</label></li>
         ════════════════════════════════════════════════════
 Phase 0 ████                                                 Fundament     ✅
 Phase 1       ████                                           Motor-Test    ✅
-Phase 2             ████                                     Odometrie     ◄── AKTUELL
-Phase 3                   ██████                             SLAM
+Phase 2             ████                                     Odometrie     ✅
+Phase 3                   ██████                             SLAM          ◄── AKTUELL
 Phase 4                            ██████                    Navigation
 Phase 5                                     ██████           Kamera/AI
 Phase 6                                              ██████  Integration
@@ -260,7 +337,8 @@ Ergebnisse festhält</label></li>
 <li><label><input type="checkbox" checked="" />Der nächste Schritt klar
 ist</label></li>
 </ul>
-<p><strong>Phase 1:</strong> Alle Punkte erfüllt ✅</p>
+<p><strong>Phase 1:</strong> ✅ Alle Punkte erfüllt <strong>Phase
+2:</strong> ✅ Alle Punkte erfüllt</p>
 <hr />
 <h2 id="aktuelle-software-versionen">🔧 Aktuelle Software-Versionen</h2>
 <table class="table table-compact">
@@ -273,11 +351,11 @@ ist</label></li>
 <tbody>
 <tr>
 <td>ESP32 Firmware</td>
-<td>v0.3.0-serial</td>
+<td><strong>v0.5.0-pid</strong></td>
 </tr>
 <tr>
 <td>Serial Bridge</td>
-<td>v0.3.0</td>
+<td>v0.4.0-odom</td>
 </tr>
 <tr>
 <td>Docker Stack</td>
@@ -285,12 +363,12 @@ ist</label></li>
 </tr>
 <tr>
 <td>Git Repo</td>
-<td>unger-robotics/amr-platform</td>
+<td>ju1-eu/amr-platform</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<p><em>Aktualisiert: 2025-12-12 | Phase 1 abgeschlossen</em></p>
+<p><em>Aktualisiert: 2025-12-12 | Phase 2 abgeschlossen</em></p>
 </div>
 </body>
 </html>

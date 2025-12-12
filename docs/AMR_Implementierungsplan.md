@@ -2,7 +2,7 @@
 
 ## Vom Schaltplan zur autonomen Navigation
 
-> **Version:** 1.2 | **Stand:** 2025-12-12 | **Firmware:** v0.3.0-serial
+> **Version:** 1.3 | **Stand:** 2025-12-12 | **Firmware:** v0.5.0-pid
 
 ---
 
@@ -18,10 +18,10 @@ Klassisch (riskant):          Unser Weg (inkrementell):
 ┌──────────────────┐          Phase 1: ──────────────────► ✅
 │    Navigation    │                   Motor + Failsafe
 ├──────────────────┤
-│   Wahrnehmung    │          Phase 2: ──────────────────► ◄── AKTUELL
-├──────────────────┤                   + Encoder + Odom
+│   Wahrnehmung    │          Phase 2: ──────────────────► ✅
+├──────────────────┤                   + Encoder + Odom + PID
 │    Firmware      │
-├──────────────────┤          Phase 3: ──────────────────►
+├──────────────────┤          Phase 3: ──────────────────► ◄── AKTUELL
 │    Hardware      │                   + LiDAR + SLAM
 └──────────────────┘
        ↓                      Phase 4: ──────────────────►
@@ -70,19 +70,6 @@ Klassisch (riskant):          Unser Weg (inkrementell):
 
 **Lösung:** Serial-Bridge als Workaround
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        Serial-Bridge Architektur                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│   ROS 2 (Docker)              USB-Serial              ESP32-S3          │
-│  ┌──────────────┐            ┌────────┐            ┌──────────────┐    │
-│  │ /cmd_vel     │───────────▶│ Bridge │───────────▶│ Differential │    │
-│  │ Twist msg    │            │ Node   │  V:0.2,    │ Drive        │    │
-│  └──────────────┘            │ Python │  W:0.5\n   │ Kinematik    │    │
-│                              └────────┘            └──────────────┘    │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
 ### 1.3 Cytron MDD3A – Dual-PWM Steuerung
 
 > ⚠️ **Kritisch:** Der MDD3A verwendet **kein** DIR-Pin, sondern zwei PWM-Signale pro Motor!
@@ -94,86 +81,28 @@ Klassisch (riskant):          Unser Weg (inkrementell):
 | 0 | 0 | Coast (Auslaufen) |
 | 200 | 200 | Active Brake |
 
-### 1.4 Deadzone-Kompensation
-
-Kleine Geschwindigkeiten (z.B. bei Drehung mit W=0.5) fielen unter die Motor-Deadzone. Lösung:
-
-```cpp
-void hal_motor_set(uint8_t ch_a, uint8_t ch_b, float speed) {
-    // Unter 5% ignorieren
-    if (abs(speed) < 0.05f) {
-        ledcWrite(ch_a, 0);
-        ledcWrite(ch_b, 0);
-        return;
-    }
-
-    // Deadzone-Kompensation: Skaliere auf [PWM_DEADZONE, PWM_MAX]
-    int pwm = PWM_DEADZONE + (int)(abs(speed) * (MOTOR_PWM_MAX - PWM_DEADZONE));
-    // ...
-}
-```
-
-### 1.5 Validierung
-
-```bash
-# Teleop starten
-docker exec -it amr_perception bash
-source /opt/ros/jazzy/setup.bash
-ros2 run teleop_twist_keyboard teleop_twist_keyboard
-```
-
-**Tasten:** `i`=Vorwärts, `,`=Rückwärts, `j`/`l`=Drehen, `k`=Stopp
-
 **Meilenstein Phase 1:** ✅ Teleop funktioniert, Failsafe aktiv.
 
 ---
 
-## Phase 2: Bewegung mit Feedback (Woche 5–6) ◄── AKTUELL
+## Phase 2: Bewegung mit Feedback (Woche 5–6) ✅
 
-**Ziel:** Der Roboter weiß, wo er ist (Odometrie). Wir können ihn per Tastatur steuern und seine Position in RViz2 sehen.
+**Ziel:** Der Roboter weiß, wo er ist (Odometrie) und fährt präzise geradeaus (PID-Regelung).
 
-### 2.1 Encoder-Integration
+**Status:** ✅ Abgeschlossen (2025-12-12)
 
-Die Encoder liefern Impulse pro Radumdrehung. Der ESP32 zählt diese in einem Interrupt.
+### 2.1 Encoder-Kalibrierung
 
-**Pin-Belegung:**
+**Methode:** 10-Umdrehungen-Test mit `calibration_encoder.cpp`
 
-| Encoder | Pin | Interrupt |
-|---------|-----|-----------|
-| Links | D6 | RISING |
-| Rechts | D7 | RISING |
+| Rad | Ticks (10 Umdrehungen) | Ticks/Rev | Theoretisch |
+|-----|------------------------|-----------|-------------|
+| Links | 3743 | **374.3** | 390.5 |
+| Rechts | 3736 | **373.6** | 390.5 |
 
-**ISR:**
+Die kalibrierten Werte weichen 4,2 % vom theoretischen Wert ab (Getriebespiel, Toleranzen).
 
-```cpp
-volatile long encoder_left_ticks = 0;
-volatile long encoder_right_ticks = 0;
-
-void IRAM_ATTR encoder_left_isr() {
-    encoder_left_ticks++;
-}
-
-void IRAM_ATTR encoder_right_isr() {
-    encoder_right_ticks++;
-}
-```
-
-### 2.2 Encoder-Kalibrierung
-
-1. Rad markieren (Strich auf Reifen und Chassis)
-2. Kalibrierungs-Sketch hochladen
-3. Rad **exakt 10 Umdrehungen** von Hand drehen
-4. Ticks ablesen und durch 10 teilen
-5. **Für beide Motoren einzeln durchführen!**
-
-Werte in `config.h` eintragen:
-
-```cpp
-#define TICKS_PER_REV_LEFT     390.5f  // Kalibriert
-#define TICKS_PER_REV_RIGHT    392.0f  // Kalibriert
-```
-
-### 2.3 Odometrie-Berechnung
+### 2.2 Odometrie-Berechnung
 
 **Differentialkinematik:**
 
@@ -189,27 +118,67 @@ y += d_center × sin(theta + d_theta/2)
 theta += d_theta
 ```
 
-### 2.4 Serial-Protokoll erweitern
+### 2.3 PID-Geschwindigkeitsregelung
+
+**Problem (Open-Loop):**
+
+- Distanzfehler: 16 % (1.158 m statt 1.0 m)
+- Drift: 14 cm nach links (rechtes Rad 3,7 % schneller)
+
+**Lösung:** Closed-Loop PID-Regelung pro Rad
+
+```
+                    ┌─────────────────────────────────────────────────────┐
+                    │              Pro Rad (links/rechts)                 │
+                    │                                                     │
+  Soll-v ──────────►│  ┌───────┐      ┌───────┐      ┌───────┐          │
+  (cmd_vel)         │  │  PID  │──────│  PWM  │──────│ Motor │──────┬───│───► Rad
+                    │  │Regler │      │Treiber│      │       │      │   │
+                    │  └───────┘      └───────┘      └───────┘      │   │
+                    │       ▲                                       │   │
+                    │       │         ┌───────────┐                 │   │
+                    │       └─────────│  Encoder  │◄────────────────┘   │
+                    │         Ist-v   │  → v_ist  │                     │
+                    │                 └───────────┘                     │
+                    └─────────────────────────────────────────────────────┘
+```
+
+### 2.4 PID-Tuning Ergebnis
+
+**Tuning-Methode:** Manuell (inkrementell) am 2025-12-12
+
+| Parameter | Startwert | Endwert | Funktion |
+|-----------|-----------|---------|----------|
+| **Kp** | 2.0 | **13.0** | Hauptkorrektur – erhöht bis Soll-v erreicht |
+| **Ki** | 0.5 | **5.0** | Stationärer Fehler – eliminiert Drift |
+| **Kd** | 0.01 | **0.01** | Dämpfung – kein Überschwingen beobachtet |
+
+### 2.5 Validierung (Bodentest 1m @ 0.2 m/s)
+
+| Metrik | Open-Loop | Mit PID | Verbesserung |
+|--------|-----------|---------|--------------|
+| Distanz x | 1.158 m | **0.984 m** | Fehler: 16% → **1.6%** |
+| Drift y | 14 cm | **0.5 cm** | **28× besser** |
+| Encoder L/R | 2381/2470 | **1802/1802** | Synchron! |
+
+### 2.6 Serial-Protokoll (erweitert)
 
 ```
 ESP32 → Host: ODOM:<left_ticks>,<right_ticks>,<x>,<y>,<theta>\n
+Host → ESP32: PID:<Kp>,<Ki>,<Kd>\n   (Live-Tuning)
+Host → ESP32: DEBUG:ON/OFF\n         (Velocity-Nachrichten)
 ```
 
-### 2.5 ROS 2 Publisher
+### 2.7 ROS 2 Integration
 
 - `/odom` (Typ: `nav_msgs/Odometry`) – Position und Orientierung
 - TF-Broadcast: `odom` → `base_link`
 
-### 2.6 Validierung
-
-- Roboter 1 m fahren → Odometrie muss ~1 m anzeigen (±5%)
-- RViz2: Odometrie-Pfad visualisieren
-
-**Meilenstein Phase 2:** Roboter fährt per Tastatur, Odometrie in RViz2 stimmt auf ±5 %.
+**Meilenstein Phase 2:** ✅ Odometrie <2% Fehler, Drift <1cm, PID-Regelung aktiv.
 
 ---
 
-## Phase 3: Sehen lernen – LiDAR & SLAM (Woche 7–9)
+## Phase 3: Sehen lernen – LiDAR & SLAM (Woche 7–9) ◄── AKTUELL
 
 **Ziel:** Der Roboter baut eine Karte seiner Umgebung.
 
@@ -275,12 +244,12 @@ ros2 launch slam_toolbox online_async_launch.py params_file:=slam_params.yaml
 
 | Risiko | Wahrscheinlichkeit | Impact | Mitigation |
 |--------|-------------------|--------|------------|
-| libcamera-Inkompatibilität | Niedrig | Hoch | Raspberry Pi OS ✅ |
-| Odometrie-Drift | Hoch | Mittel | Kalibrierung, später EKF |
+| libcamera-Inkompatibilität | Niedrig | Hoch | ✅ Raspberry Pi OS |
+| Odometrie-Drift | ~~Hoch~~ | ~~Mittel~~ | ✅ **PID-Regelung** |
 | Hailo-Treiber instabil | Mittel | Mittel | Navigation funktioniert auch ohne AI |
 | Nav2-Tuning aufwändig | Hoch | Mittel | Viel Zeit einplanen |
-| **micro-ROS inkompatibel** | ~~Hoch~~ | ~~Hoch~~ | ✅ **Serial-Bridge** |
-| **MDD3A-Ansteuerung** | ~~Hoch~~ | ~~Hoch~~ | ✅ **Dual-PWM** |
+| micro-ROS inkompatibel | ~~Hoch~~ | ~~Hoch~~ | ✅ **Serial-Bridge** |
+| MDD3A-Ansteuerung | ~~Hoch~~ | ~~Hoch~~ | ✅ **Dual-PWM** |
 
 ---
 
@@ -291,8 +260,8 @@ Woche:  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
         ════════════════════════════════════════════════════
 Phase 0 ████                                                 Fundament     ✅
 Phase 1       ████                                           Motor-Test    ✅
-Phase 2             ████                                     Odometrie     ◄── AKTUELL
-Phase 3                   ██████                             SLAM
+Phase 2             ████                                     Odometrie     ✅
+Phase 3                   ██████                             SLAM          ◄── AKTUELL
 Phase 4                            ██████                    Navigation
 Phase 5                                     ██████           Kamera/AI
 Phase 6                                              ██████  Integration
@@ -312,9 +281,10 @@ Jede Phase ist erst abgeschlossen, wenn:
 - [x] Der nächste Schritt klar ist
 
 **Phase 1:** ✅ Alle Punkte erfüllt
+**Phase 2:** ✅ Alle Punkte erfüllt
 
 ---
 
 *Dieser Plan folgt dem Prinzip: Jede Woche ein lauffähiges System. Lieber weniger Features, die funktionieren, als viele Features, die zusammen crashen.*
 
-*Aktualisiert: 2025-12-12 | Firmware: v0.3.0-serial | Phase 1 abgeschlossen*
+*Aktualisiert: 2025-12-12 | Firmware: v0.5.0-pid | Phase 2 abgeschlossen*
