@@ -17,17 +17,12 @@ services:
     restart: unless-stopped
     
     volumes:
-      # Geräte-Zugriff
       - /dev:/dev
       - /run/udev:/run/udev:ro
-      
-      # ROS 2 Workspace (persistent)
       - ./perception/src:/ros_ws/src
       - ./config:/ros_ws/config
       - ./maps:/ros_ws/maps
       - ./launch:/ros_ws/launch
-      
-      # Kamera-Zugriff (libcamera)
       - /var/run/camera:/var/run/camera
       
     environment:
@@ -36,9 +31,9 @@ services:
       - RCUTILS_COLORIZED_OUTPUT=1
       
     devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0   # RPLIDAR A1
-      - /dev/video0:/dev/video0     # Kamera (falls v4l2)
-      - /dev/hailo0:/dev/hailo0     # Hailo-8L
+      - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/video0:/dev/video0
+      - /dev/hailo0:/dev/hailo0
       
     command: >
       bash -c "
@@ -46,30 +41,42 @@ services:
         if [ -f /ros_ws/install/setup.bash ]; then
           source /ros_ws/install/setup.bash
         fi &&
-        echo 'ROS 2 Jazzy ready. Use: docker exec -it amr_perception bash' &&
+        echo 'ROS 2 Jazzy ready.' &&
         sleep infinity
       "
 
   # ============================================
-  # micro-ROS Agent (ESP32 Bridge)
+  # Serial Bridge (ersetzt micro-ROS Agent)
   # ============================================
-  micro_ros:
-    image: microros/micro-ros-agent:jazzy
-    container_name: amr_micro_ros
-    hostname: amr_micro_ros
+  serial_bridge:
+    image: ros:jazzy-ros-base
+    container_name: amr_serial_bridge
+    hostname: amr_serial_bridge
     network_mode: host
     privileged: true
     restart: unless-stopped
     
-    devices:
-      - /dev/ttyACM0:/dev/ttyACM0   # ESP32-S3 XIAO (USB-CDC)
+    volumes:
+      - ../ros2_ws/src/amr_serial_bridge:/ros2_ws/src/amr_serial_bridge:ro
+      - /dev:/dev
       
     environment:
       - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       
-    command: serial --dev /dev/ttyACM0 -b 115200 -v6
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+      
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y python3-pip python3-serial &&
+        source /opt/ros/jazzy/setup.bash &&
+        cd /ros2_ws &&
+        colcon build --packages-select amr_serial_bridge --symlink-install &&
+        source install/setup.bash &&
+        echo 'Serial Bridge starting...' &&
+        ros2 run amr_serial_bridge serial_bridge
+      "
     
-    # Erst starten wenn perception läuft
     depends_on:
       - perception
-
