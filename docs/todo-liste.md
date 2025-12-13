@@ -1,145 +1,148 @@
 # ToDo-Liste AMR-Projekt
 
-> **Stand:** 2025-12-12 | **Aktuelle Phase:** 3 (SLAM)
+> **Stand:** 2025-12-13 | **Aktuelle Phase:** 3 (micro-ROS Integration)
 
 ---
 
-## 📊 Phasen-Übersicht
+## 📊 Phasen-Übersicht (Revidiert)
 
 | Phase | Beschreibung | Status |
 |-------|--------------|--------|
 | Phase 0 | Fundament (OS, Docker, Hailo) | ✅ Abgeschlossen |
-| Phase 1 | Motor-Test + Teleop | ✅ Abgeschlossen |
-| Phase 2 | Encoder + Odometrie + PID | ✅ **Abgeschlossen** |
-| Phase 3 | LiDAR + SLAM | ◄── **AKTUELL** |
-| Phase 4 | Navigation | ⬜ |
-| Phase 5 | Kamera + AI | ⬜ |
-| Phase 6 | Integration | ⬜ |
+| Phase 1 | Motor-Test + Teleop (Serial-Bridge) | ✅ Abgeschlossen |
+| Phase 2 | Encoder + Odometrie + PID (Serial-Bridge) | ✅ Abgeschlossen |
+| Phase 3 | **micro-ROS Integration** | ◄── **AKTUELL** |
+| Phase 4 | LiDAR + SLAM | ⬜ |
+| Phase 5 | Navigation (Nav2) | ⬜ |
+| Phase 6 | Kamera + AI | ⬜ |
+| Phase 7 | Integration & Härtung | ⬜ |
 
 ---
 
-## ✅ Phase 1: Abgeschlossen (2025-12-12)
+## ✅ Phase 1 & 2: Abgeschlossen (Serial-Bridge)
 
-### Erreichte Ziele
+### Erreichte Ziele (als Backup vorhanden)
 
-- [x] ESP32 Serial-Bridge Firmware v0.3.0
-- [x] Differential Drive Kinematik
-- [x] Deadzone-Kompensation
-- [x] Failsafe (500ms Timeout)
+- [x] ESP32 Serial-Bridge Firmware v0.5.0-pid
+- [x] Differential Drive mit PID-Regelung
+- [x] Encoder-Kalibrierung (374.3 / 373.6 Ticks/Rev)
+- [x] Odometrie (x, y, theta)
 - [x] ROS 2 Serial Bridge Node
-- [x] Docker Integration
-- [x] Teleop Tastatursteuerung
-- [x] Git-Workflow Mac ↔ GitHub ↔ Pi
+- [x] Bodentest: 1.6% Distanzfehler, 0.5cm Drift
 
-### Workaround dokumentiert
-
-- micro-ROS Build scheitert an Python 3.13
-- **Lösung:** Serial-Bridge statt micro-ROS Agent
+**Hinweis:** Serial-Bridge bleibt als Fallback in `firmware_serial/`
 
 ---
 
-## ✅ Phase 2: Abgeschlossen (2025-12-12)
+## 🎯 Phase 3: micro-ROS Integration (AKTUELL)
 
-### 2.1 Encoder-Kalibrierung
+### Architektur-Entscheidung (2025-12-13)
 
-- [x] Kalibrierungs-Sketch auf ESP32 flashen
-- [x] Linkes Rad: 10 Umdrehungen → 3743 Ticks
-- [x] Rechtes Rad: 10 Umdrehungen → 3736 Ticks
-- [x] `TICKS_PER_REV_LEFT = 374.3f` in config.h
-- [x] `TICKS_PER_REV_RIGHT = 373.6f` in config.h
+**Alt:** Serial-Bridge (Python Parser, Custom Protokoll)
+**Neu:** micro-ROS (Native ROS 2 Topics, DDS-Standard)
 
-### 2.2 ESP32 Firmware erweitern
+| Aspekt | Serial-Bridge | micro-ROS |
+|--------|---------------|-----------|
+| Protokoll | Custom Text | DDS/XRCE |
+| ROS 2 Integration | Bridge-Node | Native |
+| Zukunftssicherheit | Begrenzt | ✅ Standard |
+| Komplexität | Einfacher | Höher |
 
-- [x] Encoder-ISR implementieren (D6, D7)
-- [x] Odometrie-Berechnung (x, y, theta)
-- [x] Serial-Protokoll: `ODOM:<l>,<r>,<x>,<y>,<theta>\n`
-- [x] `RESET_ODOM` Befehl
-- [x] PID-Geschwindigkeitsregelung (Kp=13, Ki=5, Kd=0.01)
-- [x] Live-Tuning: `PID:<Kp>,<Ki>,<Kd>` Befehl
-- [x] Debug-Modus: `DEBUG:ON/OFF` für VEL-Nachrichten
+### 3.1 Agent als systemd Service ⬜
 
-### 2.3 ROS 2 Bridge erweitern
+- [ ] Service-Datei erstellen (`/etc/systemd/system/microros-agent.service`)
+- [ ] Automatischer Start bei Boot
+- [ ] Restart bei Absturz
+- [ ] Status-Monitoring
 
-- [x] Odometrie parsen
-- [x] `/odom` Topic publizieren (nav_msgs/Odometry)
-- [x] TF-Broadcast: `odom` → `base_link`
+**Befehl:**
 
-### 2.4 Validierung (Bodentest)
+```bash
+sudo systemctl enable microros-agent
+sudo systemctl start microros-agent
+```
 
-| Test | Soll | Ist | Status |
-|------|------|-----|--------|
-| 1m Geradeaus | x=1.0m | x=0.984m | ✅ 1.6% Fehler |
-| Drift | y=0.0m | y=0.005m | ✅ 0.5cm |
-| Encoder-Sync | gleich | 1802/1802 | ✅ Perfekt |
+### 3.2 Motor-Control (`/cmd_vel`) ⬜
 
-### Vergleich Open-Loop vs. PID
+- [ ] `geometry_msgs/Twist` Subscriber implementieren
+- [ ] Differential Drive Kinematik (v, ω → v_left, v_right)
+- [ ] PWM-Ausgabe an Cytron MDD3A
+- [ ] Deadzone-Kompensation
+- [ ] Failsafe (Timeout → Motoren stopp)
 
-| Metrik | Open-Loop | Mit PID | Verbesserung |
-|--------|-----------|---------|--------------|
-| Distanzfehler | 16% | 1.6% | **10× besser** |
-| Drift | 14 cm | 0.5 cm | **28× besser** |
+**Topics:**
+
+| Topic | Typ | Richtung | Beschreibung |
+|-------|-----|----------|--------------|
+| `/cmd_vel` | `geometry_msgs/Twist` | Sub | Geschwindigkeitsbefehl |
+| `/esp32/heartbeat` | `std_msgs/Int32` | Pub | Watchdog (vorhanden) |
+| `/esp32/led_cmd` | `std_msgs/Bool` | Sub | LED-Steuerung (vorhanden) |
+
+### 3.3 Odometrie (`/odom`) ⬜
+
+- [ ] Encoder-ISR implementieren (D6, D7)
+- [ ] Tick-Zählung (Interrupt-basiert)
+- [ ] Odometrie-Berechnung (Δx, Δy, Δθ)
+- [ ] `nav_msgs/Odometry` Publisher
+- [ ] TF-Broadcast: `odom` → `base_link`
+
+**Topics:**
+
+| Topic | Typ | Frequenz | Beschreibung |
+|-------|-----|----------|--------------|
+| `/odom` | `nav_msgs/Odometry` | 50 Hz | Position & Orientierung |
+| `/tf` | `tf2_msgs/TFMessage` | 50 Hz | Transform odom→base_link |
+
+### 3.4 IMU Integration (Optional) ⬜
+
+- [ ] MPU6050 über I2C ansprechen (D4/D5)
+- [ ] `sensor_msgs/Imu` Publisher
+- [ ] Orientierung (Quaternion)
+- [ ] TF: `base_link` → `imu_link`
 
 ---
 
-## 🎯 Phase 3: SLAM (AKTUELL)
+## 📋 Phase 3 Validierung
 
-### 3.1 LiDAR Integration
+| Test | Kriterium | Status |
+|------|-----------|--------|
+| Agent Service | Startet automatisch nach Reboot | ⬜ |
+| cmd_vel → Motor | Teleop funktioniert | ⬜ |
+| Odometrie | 1m Test < 5% Fehler | ⬜ |
+| Failsafe | Motoren stoppen nach 500ms | ⬜ |
+| TF Tree | odom → base_link korrekt | ⬜ |
+
+---
+
+## 🔜 Nächste Phasen (Vorschau)
+
+### Phase 4: LiDAR + SLAM
 
 - [ ] RPLIDAR A1 in Docker einbinden
-- [ ] `/scan` Topic verifizieren
-- [ ] TF: `base_link` → `laser_frame`
-
-### 3.2 SLAM Toolbox
-
 - [ ] slam_toolbox konfigurieren
-- [ ] Online Async SLAM starten
 - [ ] Testraum kartieren
-
-### 3.3 Validierung
-
 - [ ] Karte speichern (PGM + YAML)
-- [ ] Karte in RViz2 visualisieren
-- [ ] Lokalisierungsgenauigkeit prüfen
 
----
-
-## 📋 Nächste Phasen (Vorschau)
-
-### Phase 4: Navigation
+### Phase 5: Navigation (Nav2)
 
 - [ ] Nav2 Stack konfigurieren
 - [ ] AMCL Lokalisierung
 - [ ] Autonome Punkt-zu-Punkt Navigation
 
-### Phase 5: Kamera + AI
+### Phase 6: Kamera + AI
 
-- [ ] IMX296 Global Shutter integrieren
+- [ ] IMX296 Global Shutter
 - [ ] YOLOv8 auf Hailo-8L
-- [ ] Personen-Erkennung → Stopp-Verhalten
+- [ ] Personen-Erkennung → Stopp
 
-### Phase 6: Integration
+### Phase 7: Integration
 
 - [ ] Sensor Fusion (EKF)
-- [ ] Systemstart automatisieren
 - [ ] Demo vorbereiten
 
 ---
 
-## 📚 Dokumentation
-
-| Datei | Inhalt | Status |
-|-------|--------|--------|
-| `01-Pi-OS-flashen.md` | OS-Installation, SSH, Docker | ✅ |
-| `02-hailo-setup.md` | HailoRT 4.23.0, Benchmark | ✅ |
-| `03-ros2-docker.md` | Container-Setup, URDF | ✅ |
-| `04-esp32-firmware.md` | PlatformIO Firmware | ✅ |
-| `08-entwicklerdoku-status.md` | Projektstatus | ✅ Aktualisiert |
-| `AMR_Implementierungsplan.md` | Phasenplan | ✅ |
-| `Industriestandards-AMR.md` | REP-103, REP-105 | ✅ |
-
----
-
-## 📅 Zeitplan
+## 📅 Revidierter Zeitplan
 
 ```
 Woche:  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
@@ -147,39 +150,55 @@ Woche:  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
 Phase 0 ████                                                 Fundament     ✅
 Phase 1       ████                                           Motor-Test    ✅
 Phase 2             ████                                     Odometrie     ✅
-Phase 3                   ██████                             SLAM          ◄── AKTUELL
-Phase 4                            ██████                    Navigation
-Phase 5                                     ██████           Kamera/AI
-Phase 6                                              ██████  Integration
+Phase 3                   ████                               micro-ROS     ◄── AKTUELL
+Phase 4                         ████                         SLAM
+Phase 5                               ██████                 Navigation
+Phase 6                                       ████           Kamera/AI
+Phase 7                                             ████     Integration
         ════════════════════════════════════════════════════
 ```
 
 ---
 
-## ✅ Checkliste pro Phase
+## 🔧 Software-Versionen
 
-Jede Phase ist erst abgeschlossen, wenn:
-
-- [x] Die definierten Tests bestanden sind
-- [x] Der Code committet und dokumentiert ist
-- [x] Die Konfigurationsdateien versioniert sind
-- [x] Ein kurzes Protokoll die Ergebnisse festhält
-- [x] Der nächste Schritt klar ist
-
-**Phase 1:** ✅ Alle Punkte erfüllt
-**Phase 2:** ✅ Alle Punkte erfüllt
+| Komponente | Version | Ort |
+|------------|---------|-----|
+| micro-ROS Firmware | **v1.0.0** | `esp32_microros_test/` |
+| micro-ROS Agent | Humble (Docker) | `microros/micro-ros-agent:humble` |
+| Serial-Bridge (Backup) | v0.5.0-pid | `firmware_serial/` |
 
 ---
 
-## 🔧 Aktuelle Software-Versionen
+## 📁 Projekt-Struktur (aktualisiert)
 
-| Komponente | Version |
-|------------|---------|
-| ESP32 Firmware | **v0.5.0-pid** |
-| Serial Bridge | v0.4.0-odom |
-| Docker Stack | perception + serial_bridge |
-| Git Repo | unger-robotics/amr-platform |
+```
+amr-platform/
+├── esp32_microros_test/     # ◄── AKTIV (micro-ROS)
+│   ├── include/config.h
+│   ├── src/main.cpp
+│   ├── platformio.ini
+│   └── README.md
+├── firmware_serial/          # Backup (Serial-Bridge)
+├── firmware_test/            # Hardware-Tests
+├── docker/
+├── ros2_ws/
+└── docs/
+```
 
 ---
 
-*Aktualisiert: 2025-12-12 | Phase 2 abgeschlossen*
+## ✅ Checkliste: Phase 3 abgeschlossen wenn
+
+- [ ] Agent startet automatisch bei Boot
+- [ ] `/cmd_vel` steuert Motoren
+- [ ] `/odom` publiziert Position
+- [ ] TF-Tree ist korrekt
+- [ ] Teleop funktioniert
+- [ ] Failsafe getestet
+- [ ] Code committet und dokumentiert
+- [ ] README.md aktualisiert
+
+---
+
+*Aktualisiert: 2025-12-13 | Architektur-Wechsel zu micro-ROS*

@@ -1,0 +1,28 @@
+[Unit]
+Description=micro-ROS Agent for ESP32
+Documentation=https://micro.ros.org/
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+
+# Container vorher aufräumen
+ExecStartPre=-/usr/bin/docker stop microros-agent
+ExecStartPre=-/usr/bin/docker rm microros-agent
+
+# Agent starten
+ExecStart=/usr/bin/docker run --rm --name microros-agent \
+    -v /dev:/dev \
+    --privileged \
+    --net=host \
+    microros/micro-ros-agent:humble \
+    serial --dev /dev/ttyACM0 -b 115200
+
+# Sauberes Beenden
+ExecStop=/usr/bin/docker stop microros-agent
+
+[Install]
+WantedBy=multi-user.target
