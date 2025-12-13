@@ -178,7 +178,7 @@ Jede Phase ist erst abgeschlossen, wenn:
 | ESP32 Firmware | **v0.5.0-pid** |
 | Serial Bridge | v0.4.0-odom |
 | Docker Stack | perception + serial_bridge |
-| Git Repo | ju1-eu/amr-platform |
+| Git Repo | unger-robotics/amr-platform |
 
 ---
 

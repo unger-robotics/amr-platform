@@ -137,7 +137,7 @@
 ## 4. Projekt-Struktur
 
 ```
-amr-platform/                    # GitHub: ju1-eu/amr-platform
+amr-platform/                    # GitHub: unger-robotics/amr-platform
 ├── firmware/                    # micro-ROS Firmware (nicht verwendet)
 ├── firmware_serial/             # Serial-Bridge Firmware ✅
 │   ├── platformio.ini
@@ -274,4 +274,4 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
 ---
 
-*Dokumentation erstellt: 2025-12-12 | Autor: Jan Unger | FH Aachen*
+*Dokumentation erstellt: 2025-12-12 | Autor: Jan Unger*
