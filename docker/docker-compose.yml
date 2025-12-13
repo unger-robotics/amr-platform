@@ -1,5 +1,8 @@
 # AMR Docker Stack
-# Raspberry Pi OS + ROS 2 Jazzy
+# Raspberry Pi OS + ROS 2 Humble/Jazzy
+#
+# HINWEIS: micro-ROS Agent läuft als systemd Service (microros-agent.service)
+# Serial-Bridge ist nicht mehr erforderlich.
 
 services:
   # ============================================
@@ -15,7 +18,7 @@ services:
     network_mode: host
     privileged: true
     restart: unless-stopped
-    
+
     volumes:
       - /dev:/dev
       - /run/udev:/run/udev:ro
@@ -24,17 +27,17 @@ services:
       - ./maps:/ros_ws/maps
       - ./launch:/ros_ws/launch
       - /var/run/camera:/var/run/camera
-      
+
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       - RCUTILS_COLORIZED_OUTPUT=1
-      
+
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
       - /dev/video0:/dev/video0
       - /dev/hailo0:/dev/hailo0
-      
+
     command: >
       bash -c "
         source /opt/ros/jazzy/setup.bash &&
@@ -46,37 +49,60 @@ services:
       "
 
   # ============================================
-  # Serial Bridge (ersetzt micro-ROS Agent)
+  # Teleop (optional - für Tastatursteuerung)
   # ============================================
-  serial_bridge:
-    image: ros:jazzy-ros-base
-    container_name: amr_serial_bridge
-    hostname: amr_serial_bridge
+  teleop:
+    image: ros:humble
+    container_name: amr_teleop
     network_mode: host
-    privileged: true
-    restart: unless-stopped
-    
-    volumes:
-      - ../ros2_ws/src/amr_serial_bridge:/ros2_ws/src/amr_serial_bridge:ro
-      - /dev:/dev
-      
+    stdin_open: true
+    tty: true
+    profiles:
+      - teleop  # Nur mit: docker compose --profile teleop up
+
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      
-    devices:
-      - /dev/ttyACM0:/dev/ttyACM0
-      
+
     command: >
       bash -c "
-        apt-get update && apt-get install -y python3-pip python3-serial &&
-        source /opt/ros/jazzy/setup.bash &&
-        cd /ros2_ws &&
-        colcon build --packages-select amr_serial_bridge --symlink-install &&
-        source install/setup.bash &&
-        echo 'Serial Bridge starting...' &&
-        ros2 run amr_serial_bridge serial_bridge
+        apt-get update && apt-get install -y ros-humble-teleop-twist-keyboard &&
+        source /opt/ros/humble/setup.bash &&
+        ros2 run teleop_twist_keyboard teleop_twist_keyboard
       "
-    
-    depends_on:
-      - perception
+
+# ============================================
+# ARCHIV: Serial-Bridge (ersetzt durch micro-ROS)
+# ============================================
+# Der serial_bridge Service wurde durch native micro-ROS ersetzt.
+# micro-ROS Agent läuft als systemd Service:
+#   sudo systemctl status microros-agent
+#
+# Falls Rollback nötig:
+#   1. systemctl disable microros-agent
+#   2. serial_bridge Service unten einkommentieren
+#
+#  serial_bridge:
+#    image: ros:jazzy-ros-base
+#    container_name: amr_serial_bridge
+#    hostname: amr_serial_bridge
+#    network_mode: host
+#    privileged: true
+#    restart: unless-stopped
+#    volumes:
+#      - ../ros2_ws/src/amr_serial_bridge:/ros2_ws/src/amr_serial_bridge:ro
+#      - /dev:/dev
+#    environment:
+#      - ROS_DOMAIN_ID=0
+#      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+#    devices:
+#      - /dev/ttyACM0:/dev/ttyACM0
+#    command: >
+#      bash -c "
+#        apt-get update && apt-get install -y python3-pip python3-serial &&
+#        source /opt/ros/jazzy/setup.bash &&
+#        cd /ros2_ws &&
+#        colcon build --packages-select amr_serial_bridge --symlink-install &&
+#        source install/setup.bash &&
+#        ros2 run amr_serial_bridge serial_bridge
+#      "

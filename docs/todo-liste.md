@@ -1,6 +1,6 @@
 # ToDo-Liste AMR-Projekt
 
-> **Stand:** 2025-12-13 | **Aktuelle Phase:** 3 (micro-ROS Integration)
+> **Stand:** 2025-12-13 | **Aktuelle Phase:** 3.3 (Odometrie)
 
 ---
 
@@ -48,37 +48,35 @@
 | Zukunftssicherheit | Begrenzt | ✅ Standard |
 | Komplexität | Einfacher | Höher |
 
-### 3.1 Agent als systemd Service ⬜
+### 3.1 Agent als systemd Service ✅
 
-- [ ] Service-Datei erstellen (`/etc/systemd/system/microros-agent.service`)
-- [ ] Automatischer Start bei Boot
-- [ ] Restart bei Absturz
-- [ ] Status-Monitoring
+- [x] Service-Datei erstellen (`/etc/systemd/system/microros-agent.service`)
+- [x] Automatischer Start bei Boot
+- [x] Restart bei Absturz
+- [x] Status-Monitoring
 
-**Befehl:**
+**Validiert:** 2025-12-13
 
-```bash
-sudo systemctl enable microros-agent
-sudo systemctl start microros-agent
-```
+### 3.2 Motor-Control (`/cmd_vel`) ✅
 
-### 3.2 Motor-Control (`/cmd_vel`) ⬜
+- [x] `geometry_msgs/Twist` Subscriber implementieren
+- [x] Differential Drive Kinematik (v, ω → v_left, v_right)
+- [x] PWM-Ausgabe an Cytron MDD3A
+- [x] Deadzone-Kompensation
+- [x] Failsafe (Timeout → Motoren stopp)
+- [x] Teleop Tastatursteuerung getestet
 
-- [ ] `geometry_msgs/Twist` Subscriber implementieren
-- [ ] Differential Drive Kinematik (v, ω → v_left, v_right)
-- [ ] PWM-Ausgabe an Cytron MDD3A
-- [ ] Deadzone-Kompensation
-- [ ] Failsafe (Timeout → Motoren stopp)
+**Topics (aktiv):**
 
-**Topics:**
+| Topic | Typ | Richtung | Status |
+|-------|-----|----------|--------|
+| `/cmd_vel` | `geometry_msgs/Twist` | Sub | ✅ |
+| `/esp32/heartbeat` | `std_msgs/Int32` | Pub | ✅ |
+| `/esp32/led_cmd` | `std_msgs/Bool` | Sub | ✅ |
 
-| Topic | Typ | Richtung | Beschreibung |
-|-------|-----|----------|--------------|
-| `/cmd_vel` | `geometry_msgs/Twist` | Sub | Geschwindigkeitsbefehl |
-| `/esp32/heartbeat` | `std_msgs/Int32` | Pub | Watchdog (vorhanden) |
-| `/esp32/led_cmd` | `std_msgs/Bool` | Sub | LED-Steuerung (vorhanden) |
+**Validiert:** 2025-12-13
 
-### 3.3 Odometrie (`/odom`) ⬜
+### 3.3 Odometrie (`/odom`) ◄── AKTUELL
 
 - [ ] Encoder-ISR implementieren (D6, D7)
 - [ ] Tick-Zählung (Interrupt-basiert)
@@ -86,7 +84,7 @@ sudo systemctl start microros-agent
 - [ ] `nav_msgs/Odometry` Publisher
 - [ ] TF-Broadcast: `odom` → `base_link`
 
-**Topics:**
+**Geplante Topics:**
 
 | Topic | Typ | Frequenz | Beschreibung |
 |-------|-----|----------|--------------|
@@ -106,10 +104,10 @@ sudo systemctl start microros-agent
 
 | Test | Kriterium | Status |
 |------|-----------|--------|
-| Agent Service | Startet automatisch nach Reboot | ⬜ |
-| cmd_vel → Motor | Teleop funktioniert | ⬜ |
+| Agent Service | Startet automatisch nach Reboot | ✅ |
+| cmd_vel → Motor | Teleop funktioniert | ✅ |
+| Failsafe | Motoren stoppen nach 500ms | ✅ |
 | Odometrie | 1m Test < 5% Fehler | ⬜ |
-| Failsafe | Motoren stoppen nach 500ms | ⬜ |
 | TF Tree | odom → base_link korrekt | ⬜ |
 
 ---
@@ -164,8 +162,8 @@ Phase 7                                             ████     Integration
 
 | Komponente | Version | Ort |
 |------------|---------|-----|
-| micro-ROS Firmware | **v1.0.0** | `esp32_microros_test/` |
-| micro-ROS Agent | Humble (Docker) | `microros/micro-ros-agent:humble` |
+| micro-ROS Firmware | **v2.0.0** | `esp32_microros_test/` |
+| micro-ROS Agent | Humble (Docker) | systemd Service |
 | Serial-Bridge (Backup) | v0.5.0-pid | `firmware_serial/` |
 
 ---
@@ -174,7 +172,7 @@ Phase 7                                             ████     Integration
 
 ```
 amr-platform/
-├── esp32_microros_test/     # ◄── AKTIV (micro-ROS)
+├── esp32_microros_test/     # ◄── AKTIV (micro-ROS v2.0.0)
 │   ├── include/config.h
 │   ├── src/main.cpp
 │   ├── platformio.ini
@@ -182,6 +180,10 @@ amr-platform/
 ├── firmware_serial/          # Backup (Serial-Bridge)
 ├── firmware_test/            # Hardware-Tests
 ├── docker/
+│   └── docker-compose.yml   # serial_bridge entfernt
+├── scripts/
+│   ├── setup_microros_service.sh
+│   └── microros-agent.service
 ├── ros2_ws/
 └── docs/
 ```
@@ -190,15 +192,15 @@ amr-platform/
 
 ## ✅ Checkliste: Phase 3 abgeschlossen wenn
 
-- [ ] Agent startet automatisch bei Boot
-- [ ] `/cmd_vel` steuert Motoren
+- [x] Agent startet automatisch bei Boot
+- [x] `/cmd_vel` steuert Motoren
+- [x] Teleop funktioniert
+- [x] Failsafe getestet
 - [ ] `/odom` publiziert Position
 - [ ] TF-Tree ist korrekt
-- [ ] Teleop funktioniert
-- [ ] Failsafe getestet
 - [ ] Code committet und dokumentiert
 - [ ] README.md aktualisiert
 
 ---
 
-*Aktualisiert: 2025-12-13 | Architektur-Wechsel zu micro-ROS*
+*Aktualisiert: 2025-12-13 | Phase 3.1 + 3.2 abgeschlossen*
