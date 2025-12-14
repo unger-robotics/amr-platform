@@ -1,135 +1,193 @@
-// =============================================================================
-// micro-ROS AMR Firmware mit Odometrie (Debug-Version)
-// Version: 2.1.0-debug | Phase 3.3
-// =============================================================================
-//
-// Topics:
-//   Publisher:  /odom/x            (std_msgs/Float32)    - Position X [m]
-//   Publisher:  /odom/y            (std_msgs/Float32)    - Position Y [m]
-//   Publisher:  /odom/theta        (std_msgs/Float32)    - Orientation [rad]
-//   Publisher:  /esp32/heartbeat   (std_msgs/Int32)      - Watchdog
-//   Subscriber: /cmd_vel           (geometry_msgs/Twist) - Motorsteuerung
-//   Subscriber: /esp32/led_cmd     (std_msgs/Bool)       - LED-Steuerung
-//
-// HINWEIS: Diese Debug-Version nutzt einfache Float32 statt nav_msgs/Odometry
-//          wegen micro-ROS Buffer-Limits. Für Nav2 wird später konvertiert.
-//
-// Hardware: Seeed Studio XIAO ESP32-S3 + Cytron MDD3A + JGA25-370 Encoder
-// =============================================================================
+/**
+ * @file main.cpp
+ * @brief Firmware für den ESP32-S3 basierten AMR Low-Level Controller.
+ * * Diese Firmware implementiert eine Dual-Core Architektur zur strikten
+ * Trennung von Echtzeit-Regelung (Motorsteuerung) und High-Level Kommunikation
+ * (micro-ROS). Sie folgt den Standards REP-103 (Einheiten) und REP-105 (Frames)
+ * gemäß Industriestandards-AMR.md.
+ *
+ * @version 3.0.0
+ * @date 2025-12-14
+ * @author Jan Bloch (Reviewer Agent)
+ * * @section architecture Architektur
+ * - **Core 0 (Pro CPU):** Harte Echtzeit-Tasks (100 Hz PID Loop, Odometrie,
+ * Safety).
+ * - **Core 1 (App CPU):** Kommunikation (micro-ROS Agent, DDS Serialisierung).
+ * - **Shared Memory:** Synchronisation via FreeRTOS Mutex.
+ * * @section safety Sicherheitsfunktionen
+ * - Dead Man's Switch (Heartbeat Timeout -> Motor Stop)
+ * - Thread-Safe Data Exchange (Mutex Protection)
+ * - Deterministisches Timing durch vTaskDelayUntil (Jitter-Free PID)
+ */
 
+// =============================================================================
+// Includes & Dependencies
+// =============================================================================
 #include <Arduino.h>
+#include <Wire.h> // I2C Kommunikation (für spätere IMU Integration)
 #include <micro_ros_platformio.h>
 
+// ROS 2 Client Library (rclc)
 #include <rcl/rcl.h>
 #include <rclc/executor.h>
 #include <rclc/rclc.h>
 
-#include <geometry_msgs/msg/twist.h>
-#include <std_msgs/msg/bool.h>
-#include <std_msgs/msg/float32.h>
-#include <std_msgs/msg/int32.h>
-// nav_msgs/Odometry deaktiviert - zu groß für micro-ROS Buffer
+// ROS 2 Nachrichtentypen
+#include <geometry_msgs/msg/pose2_d.h> // Optimierte Odometrie (x, y, theta)
+#include <geometry_msgs/msg/twist.h>   // Geschwindigkeitsbefehle
+#include <std_msgs/msg/bool.h>         // LED/Status Steuerung
+#include <std_msgs/msg/int32.h>        // Heartbeat
 
-#include "config.h"
-
-// =============================================================================
-// Pin-Definitionen
-// =============================================================================
-#define LED_PIN 21 // Onboard LED (active LOW)
+#include "config.h" // Zentrale Hardware- und Physik-Konfiguration
 
 // =============================================================================
-// micro-ROS Objekte
+// FreeRTOS: Shared Memory & Synchronization
+// =============================================================================
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
+
+/**
+ * @struct SharedData
+ * @brief Thread-sicherer Datenspeicher für den Austausch zwischen Core 0 und
+ * Core 1.
+ * * Dient als "Briefkasten". Core 1 schreibt Befehle, Core 0 liest sie.
+ * Core 0 schreibt Odometrie, Core 1 liest sie.
+ * Zugriff muss durch `dataMutex` geschützt werden.
+ */
+struct SharedData {
+    // --- Input (Geschrieben von Core 1 / Gelesen von Core 0) ---
+    float target_lin_x;          ///< Soll-Linear-Geschwindigkeit [m/s]
+    float target_ang_z;          ///< Soll-Winkel-Geschwindigkeit [rad/s]
+    bool led_cmd_active;         ///< Status der LED/MOSFET (true = AN)
+    unsigned long last_cmd_time; ///< Zeitstempel des letzten empfangenen
+                                 ///< Befehls [ms] für Safety Timeout
+
+    // --- Output (Geschrieben von Core 0 / Gelesen von Core 1) ---
+    float odom_x;     ///< Aktuelle X-Position [m] (relativ zum Start)
+    float odom_y;     ///< Aktuelle Y-Position [m]
+    float odom_theta; ///< Aktuelle Orientierung [rad]
+};
+
+SharedData shared_data;      ///< Globale Instanz der Shared Data
+SemaphoreHandle_t dataMutex; ///< Mutex zum Schutz vor Race Conditions
+
+// =============================================================================
+// PID Regler Klasse
+// =============================================================================
+
+/**
+ * @class PIDController
+ * @brief Implementiert einen diskreten PID-Regler mit Anti-Windup.
+ * * Verwendet die Standardform: Output = Kp*e + Ki*∫e + Kd*de/dt.
+ * Entwickelt in Phase 2 für Drift-Kompensation.
+ */
+class PIDController {
+  public:
+    float Kp; ///< Proportional-Beiwert (Reaktionsschnelle)
+    float Ki; ///< Integral-Beiwert (Stationäre Genauigkeit)
+    float Kd; ///< Derivative-Beiwert (Dämpfung)
+
+    /**
+     * @brief Konstruktor für den PID Regler.
+     * @param kp Proportional-Gain
+     * @param ki Integral-Gain
+     * @param kd Derivative-Gain
+     */
+    PIDController(float kp, float ki, float kd)
+        : Kp(kp), Ki(ki), Kd(kd), integral(0), prev_error(0) {}
+
+    /**
+     * @brief Berechnet den Stellwert (PWM-Faktor).
+     * * @param setpoint Sollwert [m/s]
+     * @param measurement Istwert [m/s]
+     * @param dt Zeitdifferenz seit letztem Aufruf [s]
+     * @return float Stellwert im Bereich [-1.0, 1.0]
+     */
+    float compute(float setpoint, float measurement, float dt) {
+        float error = setpoint - measurement;
+
+        // Integral-Anteil berechnen & begrenzen (Anti-Windup)
+        integral += error * dt;
+        integral = constrain(integral, -0.5f, 0.5f);
+
+        // Derivative-Anteil berechnen (verhindert Division durch Null)
+        float derivative = (dt > 0.0001f) ? (error - prev_error) / dt : 0;
+        prev_error = error;
+
+        float output = Kp * error + Ki * integral + Kd * derivative;
+        return constrain(output, -1.0f, 1.0f); // Normierung auf PWM-Bereich
+    }
+
+    /**
+     * @brief Setzt den internen Status (Integral, Fehler) zurück.
+     * Wichtig beim Stoppen oder Richtungswechsel (Failsafe Reset).
+     */
+    void reset() {
+        integral = 0;
+        prev_error = 0;
+    }
+
+  private:
+    float integral;   ///< Akkumulierter Fehler (I-Anteil)
+    float prev_error; ///< Fehler des letzten Zyklus (für D-Anteil)
+};
+
+// PID Instanzen für linken und rechten Motor (Parameter aus config.h)
+PIDController pid_left(PID_KP, PID_KI, PID_KD);
+PIDController pid_right(PID_KP, PID_KI, PID_KD);
+
+// =============================================================================
+// Globale Hardware Variablen (Interrupt Service Routinen)
+// =============================================================================
+
+// Volatile ist zwingend, da Zugriff aus ISR und Main-Loop erfolgt
+volatile long encoder_ticks_left = 0;  ///< Zähler linkes Rad (Inkremental)
+volatile long encoder_ticks_right = 0; ///< Zähler rechtes Rad (Inkremental)
+
+/**
+ * @brief ISR für linken Encoder. Wird bei steigender Flanke ausgelöst.
+ * Attribut IRAM_ATTR zwingt Code in den RAM für schnellere Ausführung
+ * (Latenzminimierung).
+ */
+void IRAM_ATTR isr_encoder_left() { encoder_ticks_left++; }
+
+/**
+ * @brief ISR für rechten Encoder.
+ */
+void IRAM_ATTR isr_encoder_right() { encoder_ticks_right++; }
+
+// =============================================================================
+// ROS Objekte (Core 1)
 // =============================================================================
 rclc_support_t support;
 rcl_allocator_t allocator;
 rcl_node_t node;
+rclc_executor_t executor;
 
 // Publisher
-rcl_publisher_t pub_heartbeat;
-rcl_publisher_t pub_odom_x;
-rcl_publisher_t pub_odom_y;
-rcl_publisher_t pub_odom_theta;
+rcl_publisher_t
+    pub_odom; ///< Publiziert Pose2D (x,y,theta) - Optimiert für Bandbreite
+rcl_publisher_t pub_heartbeat; ///< Publiziert Lebenszeichen (Watchdog)
+geometry_msgs__msg__Pose2D msg_odom;
 std_msgs__msg__Int32 msg_heartbeat;
-std_msgs__msg__Float32 msg_odom_x;
-std_msgs__msg__Float32 msg_odom_y;
-std_msgs__msg__Float32 msg_odom_theta;
 
-// Subscribers
-rcl_subscription_t sub_cmd_vel;
-rcl_subscription_t sub_led_cmd;
+// Subscriber
+rcl_subscription_t sub_cmd_vel; ///< Empfängt Twist Nachrichten (Steuerung)
+rcl_subscription_t sub_led_cmd; ///< Empfängt LED Befehle (Status/Scheinwerfer)
 geometry_msgs__msg__Twist msg_cmd_vel;
 std_msgs__msg__Bool msg_led_cmd;
 
-// Executor
-rclc_executor_t executor;
-
 // =============================================================================
-// Encoder (volatile für ISR)
-// =============================================================================
-volatile long encoder_ticks_left = 0;
-volatile long encoder_ticks_right = 0;
-
-// Vorherige Werte für Delta-Berechnung
-long prev_ticks_left = 0;
-long prev_ticks_right = 0;
-
-// =============================================================================
-// Geschwindigkeitsmessung
-// =============================================================================
-float velocity_left = 0.0f;  // [m/s]
-float velocity_right = 0.0f; // [m/s]
-
-// =============================================================================
-// Odometrie
-// =============================================================================
-float odom_x = 0.0f;
-float odom_y = 0.0f;
-float odom_theta = 0.0f;
-
-// =============================================================================
-// Motorsteuerung
-// =============================================================================
-volatile float target_linear = 0.0f;  // m/s
-volatile float target_angular = 0.0f; // rad/s
-unsigned long last_cmd_time = 0;
-int32_t heartbeat_counter = 0;
-
-// =============================================================================
-// Timing
-// =============================================================================
-unsigned long last_loop_time = 0;
-unsigned long last_odom_time = 0;
-
-// =============================================================================
-// Interrupt Service Routines
+// Hardware Abstraction Layer (HAL)
 // =============================================================================
 
-void IRAM_ATTR isr_encoder_left() { encoder_ticks_left++; }
-
-void IRAM_ATTR isr_encoder_right() { encoder_ticks_right++; }
-
-// =============================================================================
-// Hardware Abstraction Layer
-// =============================================================================
-
-void hal_encoder_init() {
-    pinMode(PIN_ENC_LEFT_A, INPUT_PULLUP);
-    pinMode(PIN_ENC_RIGHT_A, INPUT_PULLUP);
-
-    attachInterrupt(digitalPinToInterrupt(PIN_ENC_LEFT_A), isr_encoder_left,
-                    RISING);
-    attachInterrupt(digitalPinToInterrupt(PIN_ENC_RIGHT_A), isr_encoder_right,
-                    RISING);
-}
-
-void hal_encoder_read(long *left, long *right) {
-    noInterrupts();
-    *left = encoder_ticks_left;
-    *right = encoder_ticks_right;
-    interrupts();
-}
-
-void setupMotors() {
+/**
+ * @brief Initialisiert alle Hardware-Pins und Peripheriegeräte.
+ * Konfiguriert PWM, Encoder-Interrupts, I2C und Safety-Pins gemäß config.h.
+ */
+void hal_init_complete() {
+    // 1. Motoren (PWM via LEDC) - Frequenz ca. 20kHz für Silent Operation
     ledcSetup(PWM_CH_LEFT_A, MOTOR_PWM_FREQ, MOTOR_PWM_BITS);
     ledcSetup(PWM_CH_LEFT_B, MOTOR_PWM_FREQ, MOTOR_PWM_BITS);
     ledcSetup(PWM_CH_RIGHT_A, MOTOR_PWM_FREQ, MOTOR_PWM_BITS);
@@ -140,302 +198,298 @@ void setupMotors() {
     ledcAttachPin(PIN_MOTOR_RIGHT_A, PWM_CH_RIGHT_A);
     ledcAttachPin(PIN_MOTOR_RIGHT_B, PWM_CH_RIGHT_B);
 
-    ledcWrite(PWM_CH_LEFT_A, 0);
-    ledcWrite(PWM_CH_LEFT_B, 0);
-    ledcWrite(PWM_CH_RIGHT_A, 0);
-    ledcWrite(PWM_CH_RIGHT_B, 0);
+    // 2. Encoder (Input Pullup + Interrupts) - Hall-Sensoren benötigen Pullups
+    pinMode(PIN_ENC_LEFT_A, INPUT_PULLUP);
+    pinMode(PIN_ENC_RIGHT_A, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(PIN_ENC_LEFT_A), isr_encoder_left,
+                    RISING);
+    attachInterrupt(digitalPinToInterrupt(PIN_ENC_RIGHT_A), isr_encoder_right,
+                    RISING);
+
+    // 3. Safety & Status
+    pinMode(PIN_LED_MOSFET, OUTPUT);
+    digitalWrite(PIN_LED_MOSFET, LOW); // Default: AUS (Safety First)
+    pinMode(21, OUTPUT);               // Onboard LED
+
+    // 4. I2C Bus Init (für MPU6050 in Phase 3)
+    Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
+
+    // 5. Servo Pins Init (Reserve für Phase 5 Camera Pan/Tilt)
+    pinMode(PIN_SERVO_PAN, OUTPUT);
+    pinMode(PIN_SERVO_TILT, OUTPUT);
 }
 
-void stopMotors() {
-    ledcWrite(PWM_CH_LEFT_A, 0);
-    ledcWrite(PWM_CH_LEFT_B, 0);
-    ledcWrite(PWM_CH_RIGHT_A, 0);
-    ledcWrite(PWM_CH_RIGHT_B, 0);
+/**
+ * @brief Setzt die PWM-Werte für die Motoren basierend auf dem normalisierten
+ * Input. Implementiert die Logik für den Cytron MDD3A Treiber (Dual PWM Mode).
+ * * @param v_left Geschwindigkeit links [-1.0 ... 1.0]
+ * @param v_right Geschwindigkeit rechts [-1.0 ... 1.0]
+ */
+void hal_motor_write(float v_left, float v_right) {
+    // Lambda-Funktion zur Ansteuerung eines einzelnen Motors
+    auto set_pwm = [](int ch_a, int ch_b, float speed) {
+        if (fabs(speed) <
+            0.05f) { // Software Deadzone verhindert "Singen" der Motoren
+            ledcWrite(ch_a, 0);
+            ledcWrite(ch_b, 0);
+        } else {
+            // Skalierung auf PWM-Bereich (Deadzone bis Max)
+            int pwm = PWM_DEADZONE +
+                      (int)(fabs(speed) * (MOTOR_PWM_MAX - PWM_DEADZONE));
+            pwm = constrain(pwm, 0, MOTOR_PWM_MAX);
+
+            if (speed > 0) { // Vorwärts
+                ledcWrite(ch_a, pwm);
+                ledcWrite(ch_b, 0);
+            } else { // Rückwärts
+                ledcWrite(ch_a, 0);
+                ledcWrite(ch_b, pwm);
+            }
+        }
+    };
+
+    set_pwm(PWM_CH_LEFT_A, PWM_CH_LEFT_B, v_left);
+    set_pwm(PWM_CH_RIGHT_A, PWM_CH_RIGHT_B, v_right);
 }
 
-uint8_t applyDeadzone(float speed_normalized) {
-    if (fabs(speed_normalized) < 0.01f) {
-        return 0;
+// =============================================================================
+// CORE 0: Real-Time Control Task
+// =============================================================================
+
+/**
+ * @brief Echtzeit-Task für Regelung und Odometrie (läuft auf Core 0).
+ * * Dieser Task läuft mit fester Frequenz (100 Hz) und höchster Priorität.
+ * Er ist physikalisch entkoppelt von der ROS-Kommunikation auf Core 1.
+ * * @param pvParameters FreeRTOS Task Parameter (nicht genutzt)
+ */
+void controlTask(void *pvParameters) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency =
+        pdMS_TO_TICKS(LOOP_PERIOD_MS); // 10ms aus config.h
+
+    // Lokale Odometrie-Akkumulatoren (werden hier integriert)
+    float local_x = 0;
+    float local_y = 0;
+    float local_theta = 0;
+
+    // Encoder Status
+    long prev_ticks_l = 0;
+    long prev_ticks_r = 0;
+    float v_enc_l = 0; // Gefilterte Geschwindigkeit
+    float v_enc_r = 0;
+
+    for (;;) {
+        // --- 1. DATEN SICHER ABHOLEN (Mutex Lock) ---
+        float target_v = 0;
+        float target_w = 0;
+        bool failsafe = false;
+        bool led_on = false;
+
+        if (xSemaphoreTake(dataMutex, (TickType_t)2) == pdTRUE) {
+            target_v = shared_data.target_lin_x;
+            target_w = shared_data.target_ang_z;
+            led_on = shared_data.led_cmd_active;
+
+            // Safety-Check: Heartbeat Timeout prüfen (gemäß Industriestandard)
+            if (millis() - shared_data.last_cmd_time > FAILSAFE_TIMEOUT_MS) {
+                failsafe = true;
+            }
+            xSemaphoreGive(dataMutex);
+        }
+
+        // --- 2. ODOMETRIE & PHYSIK BERECHNEN ---
+        float dt =
+            LOOP_PERIOD_MS / 1000.0f; // Festes dt = 0.01s (Deterministisch!)
+
+        // Encoder atomar auslesen (Interrupts kurz sperren)
+        noInterrupts();
+        long curr_l = encoder_ticks_left;
+        long curr_r = encoder_ticks_right;
+        interrupts();
+
+        long dn_l = curr_l - prev_ticks_l;
+        long dn_r = curr_r - prev_ticks_r;
+        prev_ticks_l = curr_l;
+        prev_ticks_r = curr_r;
+
+        // Plausibilitätsprüfung (Filterung von Glitches / Kontaktprellen)
+        if (abs(dn_l) < MAX_TICK_DELTA && abs(dn_r) < MAX_TICK_DELTA) {
+            // Umrechnung Ticks -> Meter
+            float dist_l = dn_l * METERS_PER_TICK_LEFT;
+            float dist_right = dn_r * METERS_PER_TICK_RIGHT;
+
+            // Low-Pass Filter für Geschwindigkeit (Glättung)
+            v_enc_l = 0.7 * v_enc_l + 0.3 * (dist_l / dt);
+            v_enc_r = 0.7 * v_enc_r + 0.3 * (dist_right / dt);
+
+            // Odometrie Integration (Differential Drive Kinematik)
+            float d_center = (dist_l + dist_right) / 2.0f;
+            float d_theta = (dist_right - dist_l) / WHEEL_BASE;
+
+            local_x += d_center * cos(local_theta + d_theta / 2.0f);
+            local_y += d_center * sin(local_theta + d_theta / 2.0f);
+            local_theta += d_theta;
+        }
+
+        // --- 3. PID & MOTOR CONTROL ---
+        if (failsafe) {
+            // Not-Halt bei Kommunikationsverlust
+            target_v = 0;
+            target_w = 0;
+            pid_left.reset();
+            pid_right.reset();
+            digitalWrite(PIN_LED_MOSFET, LOW); // Aktoren stromlos schalten
+        } else {
+            digitalWrite(PIN_LED_MOSFET, led_on ? HIGH : LOW);
+        }
+
+        // Inverse Kinematik: Twist (v, w) -> Radgeschwindigkeiten (v_l, v_r)
+        float set_v_l = target_v - (target_w * WHEEL_BASE / 2.0f);
+        float set_v_r = target_v + (target_w * WHEEL_BASE / 2.0f);
+
+        // PID Berechnung
+        float pwm_l = pid_left.compute(set_v_l, v_enc_l, dt);
+        float pwm_r = pid_right.compute(set_v_r, v_enc_r, dt);
+
+        // Hardware ansteuern
+        hal_motor_write(pwm_l, pwm_r);
+
+        // --- 4. ERGEBNISSE ZURÜCKSCHREIBEN (Mutex Lock) ---
+        if (xSemaphoreTake(dataMutex, (TickType_t)2) == pdTRUE) {
+            shared_data.odom_x = local_x;
+            shared_data.odom_y = local_y;
+            shared_data.odom_theta = local_theta;
+            xSemaphoreGive(dataMutex);
+        }
+
+        // --- 5. WAIT UNTIL ---
+        // Wartet exakt bis zum nächsten 10ms Slot (Verhindert Drift im Timing)
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
-    uint8_t pwm = (uint8_t)(PWM_DEADZONE + fabs(speed_normalized) *
-                                               (MOTOR_PWM_MAX - PWM_DEADZONE));
-    return min(pwm, (uint8_t)MOTOR_PWM_MAX);
-}
-
-void setMotorLeft(float speed) {
-    uint8_t pwm = applyDeadzone(speed);
-
-    if (speed > 0.01f) {
-        ledcWrite(PWM_CH_LEFT_A, pwm);
-        ledcWrite(PWM_CH_LEFT_B, 0);
-    } else if (speed < -0.01f) {
-        ledcWrite(PWM_CH_LEFT_A, 0);
-        ledcWrite(PWM_CH_LEFT_B, pwm);
-    } else {
-        ledcWrite(PWM_CH_LEFT_A, 0);
-        ledcWrite(PWM_CH_LEFT_B, 0);
-    }
-}
-
-void setMotorRight(float speed) {
-    uint8_t pwm = applyDeadzone(speed);
-
-    if (speed > 0.01f) {
-        ledcWrite(PWM_CH_RIGHT_A, pwm);
-        ledcWrite(PWM_CH_RIGHT_B, 0);
-    } else if (speed < -0.01f) {
-        ledcWrite(PWM_CH_RIGHT_A, 0);
-        ledcWrite(PWM_CH_RIGHT_B, pwm);
-    } else {
-        ledcWrite(PWM_CH_RIGHT_A, 0);
-        ledcWrite(PWM_CH_RIGHT_B, 0);
-    }
 }
 
 // =============================================================================
-// Geschwindigkeitsberechnung (aus Serial-Bridge übernommen)
+// ROS Callbacks (Core 1)
 // =============================================================================
 
-void velocity_update(float dt) {
-    long ticks_left, ticks_right;
-    hal_encoder_read(&ticks_left, &ticks_right);
-
-    long delta_left = ticks_left - prev_ticks_left;
-    long delta_right = ticks_right - prev_ticks_right;
-
-    prev_ticks_left = ticks_left;
-    prev_ticks_right = ticks_right;
-
-    // Sanity Check
-    if (abs(delta_left) > MAX_TICK_DELTA || abs(delta_right) > MAX_TICK_DELTA) {
-        return;
-    }
-
-    // Geschwindigkeit [m/s] = Strecke / Zeit
-    if (dt > 0.001f) {
-        float dist_left = delta_left * METERS_PER_TICK_LEFT;
-        float dist_right = delta_right * METERS_PER_TICK_RIGHT;
-
-        // Tiefpass-Filter für Rauschunterdrückung
-        const float alpha = 0.3f;
-        velocity_left =
-            alpha * (dist_left / dt) + (1.0f - alpha) * velocity_left;
-        velocity_right =
-            alpha * (dist_right / dt) + (1.0f - alpha) * velocity_right;
-    }
-}
-
-// =============================================================================
-// Odometrie (aus Serial-Bridge übernommen)
-// =============================================================================
-
-void odometry_update(float dt) {
-    float d_left = velocity_left * dt;
-    float d_right = velocity_right * dt;
-
-    float d_center = (d_left + d_right) / 2.0f;
-    float d_theta = (d_right - d_left) / WHEEL_BASE;
-
-    odom_x += d_center * cos(odom_theta + d_theta / 2.0f);
-    odom_y += d_center * sin(odom_theta + d_theta / 2.0f);
-    odom_theta += d_theta;
-
-    // Normalisieren auf [-π, π]
-    while (odom_theta > PI)
-        odom_theta -= 2.0f * PI;
-    while (odom_theta < -PI)
-        odom_theta += 2.0f * PI;
-}
-
-// =============================================================================
-// Differential Drive Kinematik
-// =============================================================================
-
-void updateMotors() {
-    float v = constrain(target_linear, -MAX_LINEAR_SPEED, MAX_LINEAR_SPEED);
-    float w = constrain(target_angular, -MAX_ANGULAR_SPEED, MAX_ANGULAR_SPEED);
-
-    // v_left  = v - (ω * L/2)
-    // v_right = v + (ω * L/2)
-    float v_left = v - (w * WHEEL_BASE / 2.0f);
-    float v_right = v + (w * WHEEL_BASE / 2.0f);
-
-    // Normalisieren
-    float v_left_norm = v_left / MAX_LINEAR_SPEED;
-    float v_right_norm = v_right / MAX_LINEAR_SPEED;
-
-    v_left_norm = constrain(v_left_norm, -1.0f, 1.0f);
-    v_right_norm = constrain(v_right_norm, -1.0f, 1.0f);
-
-    setMotorLeft(v_left_norm);
-    setMotorRight(v_right_norm);
-}
-
-// =============================================================================
-// Callbacks
-// =============================================================================
-
-void cmd_vel_callback(const void *msgin) {
+/**
+ * @brief Callback für /cmd_vel Nachrichten.
+ * Schreibt Zielwerte in den Shared Memory.
+ */
+void cb_cmd_vel(const void *msgin) {
     const geometry_msgs__msg__Twist *msg =
         (const geometry_msgs__msg__Twist *)msgin;
-    target_linear = msg->linear.x;
-    target_angular = msg->angular.z;
-    last_cmd_time = millis();
+    if (xSemaphoreTake(dataMutex, (TickType_t)5) == pdTRUE) {
+        shared_data.target_lin_x = msg->linear.x;
+        shared_data.target_ang_z = msg->angular.z;
+        shared_data.last_cmd_time =
+            millis(); // Reset Watchdog Timer (Heartbeat)
+        xSemaphoreGive(dataMutex);
+    }
 }
 
-void led_callback(const void *msgin) {
+/**
+ * @brief Callback für LED Steuerung.
+ */
+void cb_led(const void *msgin) {
     const std_msgs__msg__Bool *msg = (const std_msgs__msg__Bool *)msgin;
-    digitalWrite(PIN_LED_MOSFET, msg->data ? HIGH : LOW);
-}
-
-// =============================================================================
-// Failsafe
-// =============================================================================
-
-void checkFailsafe() {
-    if (millis() - last_cmd_time > FAILSAFE_TIMEOUT_MS) {
-        target_linear = 0.0f;
-        target_angular = 0.0f;
-        stopMotors();
+    if (xSemaphoreTake(dataMutex, (TickType_t)5) == pdTRUE) {
+        shared_data.led_cmd_active = msg->data;
+        xSemaphoreGive(dataMutex);
     }
 }
 
 // =============================================================================
-// Odometry Message erstellen
-// =============================================================================
-
-void publish_odometry() {
-    msg_odom_x.data = odom_x;
-    msg_odom_y.data = odom_y;
-    msg_odom_theta.data = odom_theta;
-
-    (void)rcl_publish(&pub_odom_x, &msg_odom_x, NULL);
-    (void)rcl_publish(&pub_odom_y, &msg_odom_y, NULL);
-    (void)rcl_publish(&pub_odom_theta, &msg_odom_theta, NULL);
-}
-
-// =============================================================================
-// LED Helper
-// =============================================================================
-
-void setStatusLED(bool on) { digitalWrite(LED_PIN, on ? LOW : HIGH); }
-
-// =============================================================================
-// Setup
+// SETUP (Initialisierung)
 // =============================================================================
 
 void setup() {
-    // Status LED
-    pinMode(LED_PIN, OUTPUT);
-    setStatusLED(false);
-
-    // MOSFET LED
-    pinMode(PIN_LED_MOSFET, OUTPUT);
-    digitalWrite(PIN_LED_MOSFET, LOW);
-
-    // Hardware initialisieren
-    setupMotors();
-    hal_encoder_init();
-
-    // USB Serial
+    // 1. Hardware Init
+    hal_init_complete();
     Serial.begin(115200);
-    delay(2000);
 
+    // 2. Shared Memory & Mutex Init
+    dataMutex = xSemaphoreCreateMutex();
+    shared_data.last_cmd_time = millis();
+
+    // 3. Start Control Task auf Core 0 (Priorität: Hoch)
+    // Stackgröße: 4096 Byte, Prio: configMAX_PRIORITIES - 1
+    xTaskCreatePinnedToCore(controlTask, "ControlLoop", 4096, NULL,
+                            configMAX_PRIORITIES - 1, NULL, 0);
+
+    // 4. micro-ROS Init (Warten auf Agent)
+    delay(1000);
     set_microros_serial_transports(Serial);
 
-    allocator = rcl_get_default_allocator();
-
-    // Warte auf Agent
-    while (RMW_RET_OK != rmw_uros_ping_agent(100, 1)) {
-        setStatusLED((millis() / 250) % 2);
+    // Blockiert, bis Agent antwortet (Ping Loop - Visuelles Feedback via LED)
+    while (rmw_uros_ping_agent(100, 1) != RMW_RET_OK) {
+        digitalWrite(21, !digitalRead(21)); // Blinken als Status
         delay(100);
     }
-    setStatusLED(true);
+    digitalWrite(21, LOW); // Verbunden (LED AN - Active Low)
 
-    // Support & Node
+    // ROS Node & Executor Setup
+    allocator = rcl_get_default_allocator();
     rclc_support_init(&support, 0, NULL, &allocator);
-    rclc_node_init_default(&node, "esp32_node", "", &support);
+    rclc_node_init_default(&node, "esp32_dual_core", "", &support);
 
-    // Publisher: Heartbeat
+    // Publisher Init (Best Effort für Sensor-Daten für weniger Overhead)
+    rclc_publisher_init_best_effort(
+        &pub_odom, &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Pose2D), "odom_raw");
+
     rclc_publisher_init_best_effort(
         &pub_heartbeat, &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32), "esp32/heartbeat");
 
-    // Publisher: Odometry (als einfache Float32 Topics)
-    rclc_publisher_init_best_effort(
-        &pub_odom_x, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-        "odom/x");
-
-    rclc_publisher_init_best_effort(
-        &pub_odom_y, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32),
-        "odom/y");
-
-    rclc_publisher_init_best_effort(
-        &pub_odom_theta, &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), "odom/theta");
-
-    // Subscriber: cmd_vel
-    rclc_subscription_init_best_effort(
+    // Subscriber Init (Reliable für Steuerbefehle, da Verlust kritisch)
+    rclc_subscription_init_default(
         &sub_cmd_vel, &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel");
 
-    // Subscriber: LED
     rclc_subscription_init_default(
         &sub_led_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Bool),
         "esp32/led_cmd");
 
-    // Executor mit 2 Subscriptions
+    // Executor Konfiguration (Verarbeitet Callbacks)
     rclc_executor_init(&executor, &support.context, 2, &allocator);
     rclc_executor_add_subscription(&executor, &sub_cmd_vel, &msg_cmd_vel,
-                                   &cmd_vel_callback, ON_NEW_DATA);
+                                   &cb_cmd_vel, ON_NEW_DATA);
     rclc_executor_add_subscription(&executor, &sub_led_cmd, &msg_led_cmd,
-                                   &led_callback, ON_NEW_DATA);
-
-    // Timing initialisieren
-    last_cmd_time = millis();
-    last_loop_time = millis();
-    last_odom_time = millis();
+                                   &cb_led, ON_NEW_DATA);
 }
 
 // =============================================================================
-// Loop
+// MAIN LOOP (Core 1: Communication Only)
 // =============================================================================
 
 void loop() {
-    unsigned long now = millis();
+    // 1. micro-ROS Kommunikation verarbeiten
+    // Spinnt für kurze Zeit, um eingehende Pakete zu checken
+    rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1));
 
-    // micro-ROS Executor
-    rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10));
+    // 2. Odometrie Publizieren (Rate limitiert auf 20 Hz zur
+    // Bandbreitenschonung)
+    static unsigned long last_pub = 0;
+    if (millis() - last_pub > ODOM_PERIOD_MS) { // 50ms = 20Hz (aus config.h)
+        last_pub = millis();
 
-    // Hauptschleife (100 Hz)
-    if (now - last_loop_time >= LOOP_PERIOD_MS) {
-        float dt = (now - last_loop_time) / 1000.0f;
-        last_loop_time = now;
+        // Daten sicher aus Shared Memory lesen
+        if (xSemaphoreTake(dataMutex, (TickType_t)2) == pdTRUE) {
+            msg_odom.x = shared_data.odom_x;
+            msg_odom.y = shared_data.odom_y;
+            msg_odom.theta = shared_data.odom_theta;
+            xSemaphoreGive(dataMutex);
 
-        // Geschwindigkeit messen
-        velocity_update(dt);
-
-        // Odometrie aktualisieren
-        odometry_update(dt);
-
-        // Failsafe
-        checkFailsafe();
-
-        // Motoren
-        updateMotors();
+            rcl_publish(&pub_odom, &msg_odom, NULL);
+        }
     }
 
-    // Odometrie publizieren (50 Hz)
-    if (now - last_odom_time >= ODOM_PERIOD_MS) {
-        last_odom_time = now;
-        publish_odometry();
-    }
-
-    // Heartbeat (1 Hz)
-    static unsigned long last_heartbeat = 0;
-    if (now - last_heartbeat > 1000) {
-        msg_heartbeat.data = heartbeat_counter++;
-        (void)rcl_publish(&pub_heartbeat, &msg_heartbeat, NULL);
-        last_heartbeat = now;
+    // 3. Heartbeat Publizieren (1 Hz Diagnose)
+    static unsigned long last_beat = 0;
+    if (millis() - last_beat > 1000) {
+        last_beat = millis();
+        msg_heartbeat.data++;
+        rcl_publish(&pub_heartbeat, &msg_heartbeat, NULL);
     }
 }

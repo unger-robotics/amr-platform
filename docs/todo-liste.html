@@ -30,12 +30,17 @@
 <div class="main-container">
 <h1 id="todo-liste-amr-projekt">ToDo-Liste AMR-Projekt</h1>
 <blockquote>
-<p><strong>Stand:</strong> 2025-12-12 | <strong>Aktuelle Phase:</strong>
-3 (SLAM)</p>
+<p><strong>Stand:</strong> 2025-12-13 | <strong>Aktuelle Phase:</strong>
+3.3 (Odometrie)</p>
 </blockquote>
 <hr />
-<h2 id="phasen-übersicht">📊 Phasen-Übersicht</h2>
+<h2 id="phasen-übersicht-revidiert">📊 Phasen-Übersicht (Revidiert)</h2>
 <table class="table table-compact">
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 48%" />
+<col style="width: 27%" />
+</colgroup>
 <thead>
 <tr>
 <th>Phase</th>
@@ -51,195 +56,262 @@
 </tr>
 <tr>
 <td>Phase 1</td>
-<td>Motor-Test + Teleop</td>
+<td>Motor-Test + Teleop (Serial-Bridge)</td>
 <td>✅ Abgeschlossen</td>
 </tr>
 <tr>
 <td>Phase 2</td>
-<td>Encoder + Odometrie + PID</td>
-<td>✅ <strong>Abgeschlossen</strong></td>
+<td>Encoder + Odometrie + PID (Serial-Bridge)</td>
+<td>✅ Abgeschlossen</td>
 </tr>
 <tr>
 <td>Phase 3</td>
-<td>LiDAR + SLAM</td>
+<td><strong>micro-ROS Integration</strong></td>
 <td>◄── <strong>AKTUELL</strong></td>
 </tr>
 <tr>
 <td>Phase 4</td>
-<td>Navigation</td>
+<td>LiDAR + SLAM</td>
 <td>⬜</td>
 </tr>
 <tr>
 <td>Phase 5</td>
-<td>Kamera + AI</td>
+<td>Navigation (Nav2)</td>
 <td>⬜</td>
 </tr>
 <tr>
 <td>Phase 6</td>
-<td>Integration</td>
+<td>Kamera + AI</td>
+<td>⬜</td>
+</tr>
+<tr>
+<td>Phase 7</td>
+<td>Integration &amp; Härtung</td>
 <td>⬜</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="phase-1-abgeschlossen-2025-12-12">✅ Phase 1: Abgeschlossen
-(2025-12-12)</h2>
-<h3 id="erreichte-ziele">Erreichte Ziele</h3>
+<h2 id="phase-1-2-abgeschlossen-serial-bridge">✅ Phase 1 &amp; 2:
+Abgeschlossen (Serial-Bridge)</h2>
+<h3 id="erreichte-ziele-als-backup-vorhanden">Erreichte Ziele (als
+Backup vorhanden)</h3>
 <ul class="task-list">
 <li><label><input type="checkbox" checked="" />ESP32 Serial-Bridge
-Firmware v0.3.0</label></li>
-<li><label><input type="checkbox" checked="" />Differential Drive
-Kinematik</label></li>
-<li><label><input type="checkbox"
-checked="" />Deadzone-Kompensation</label></li>
-<li><label><input type="checkbox" checked="" />Failsafe (500ms
-Timeout)</label></li>
+Firmware v0.5.0-pid</label></li>
+<li><label><input type="checkbox" checked="" />Differential Drive mit
+PID-Regelung</label></li>
+<li><label><input type="checkbox" checked="" />Encoder-Kalibrierung
+(374.3 / 373.6 Ticks/Rev)</label></li>
+<li><label><input type="checkbox" checked="" />Odometrie (x, y,
+theta)</label></li>
 <li><label><input type="checkbox" checked="" />ROS 2 Serial Bridge
 Node</label></li>
-<li><label><input type="checkbox" checked="" />Docker
-Integration</label></li>
-<li><label><input type="checkbox" checked="" />Teleop
-Tastatursteuerung</label></li>
-<li><label><input type="checkbox" checked="" />Git-Workflow Mac ↔︎ GitHub
-↔︎ Pi</label></li>
+<li><label><input type="checkbox" checked="" />Bodentest: 1.6%
+Distanzfehler, 0.5cm Drift</label></li>
 </ul>
-<h3 id="workaround-dokumentiert">Workaround dokumentiert</h3>
-<ul>
-<li>micro-ROS Build scheitert an Python 3.13</li>
-<li><strong>Lösung:</strong> Serial-Bridge statt micro-ROS Agent</li>
-</ul>
+<p><strong>Hinweis:</strong> Serial-Bridge bleibt als Fallback in
+<code>firmware_serial/</code></p>
 <hr />
-<h2 id="phase-2-abgeschlossen-2025-12-12">✅ Phase 2: Abgeschlossen
-(2025-12-12)</h2>
-<h3 id="encoder-kalibrierung">2.1 Encoder-Kalibrierung</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" checked="" />Kalibrierungs-Sketch auf
-ESP32 flashen</label></li>
-<li><label><input type="checkbox" checked="" />Linkes Rad: 10
-Umdrehungen → 3743 Ticks</label></li>
-<li><label><input type="checkbox" checked="" />Rechtes Rad: 10
-Umdrehungen → 3736 Ticks</label></li>
-<li><label><input type="checkbox"
-checked="" /><code>TICKS_PER_REV_LEFT = 374.3f</code> in
-config.h</label></li>
-<li><label><input type="checkbox"
-checked="" /><code>TICKS_PER_REV_RIGHT = 373.6f</code> in
-config.h</label></li>
-</ul>
-<h3 id="esp32-firmware-erweitern">2.2 ESP32 Firmware erweitern</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" checked="" />Encoder-ISR
-implementieren (D6, D7)</label></li>
-<li><label><input type="checkbox" checked="" />Odometrie-Berechnung (x,
-y, theta)</label></li>
-<li><label><input type="checkbox" checked="" />Serial-Protokoll:
-<code>ODOM:&lt;l&gt;,&lt;r&gt;,&lt;x&gt;,&lt;y&gt;,&lt;theta&gt;\n</code></label></li>
-<li><label><input type="checkbox" checked="" /><code>RESET_ODOM</code>
-Befehl</label></li>
-<li><label><input type="checkbox"
-checked="" />PID-Geschwindigkeitsregelung (Kp=13, Ki=5,
-Kd=0.01)</label></li>
-<li><label><input type="checkbox" checked="" />Live-Tuning:
-<code>PID:&lt;Kp&gt;,&lt;Ki&gt;,&lt;Kd&gt;</code> Befehl</label></li>
-<li><label><input type="checkbox" checked="" />Debug-Modus:
-<code>DEBUG:ON/OFF</code> für VEL-Nachrichten</label></li>
-</ul>
-<h3 id="ros-2-bridge-erweitern">2.3 ROS 2 Bridge erweitern</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" checked="" />Odometrie
-parsen</label></li>
-<li><label><input type="checkbox" checked="" /><code>/odom</code> Topic
-publizieren (nav_msgs/Odometry)</label></li>
-<li><label><input type="checkbox" checked="" />TF-Broadcast:
-<code>odom</code> → <code>base_link</code></label></li>
-</ul>
-<h3 id="validierung-bodentest">2.4 Validierung (Bodentest)</h3>
+<h2 id="phase-3-micro-ros-integration-aktuell">🎯 Phase 3: micro-ROS
+Integration (AKTUELL)</h2>
+<h3 id="architektur-entscheidung-2025-12-13">Architektur-Entscheidung
+(2025-12-13)</h3>
+<p><strong>Alt:</strong> Serial-Bridge (Python Parser, Custom Protokoll)
+<strong>Neu:</strong> micro-ROS (Native ROS 2 Topics, DDS-Standard)</p>
 <table class="table table-compact">
 <thead>
 <tr>
-<th>Test</th>
-<th>Soll</th>
-<th>Ist</th>
+<th>Aspekt</th>
+<th>Serial-Bridge</th>
+<th>micro-ROS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Protokoll</td>
+<td>Custom Text</td>
+<td>DDS/XRCE</td>
+</tr>
+<tr>
+<td>ROS 2 Integration</td>
+<td>Bridge-Node</td>
+<td>Native</td>
+</tr>
+<tr>
+<td>Zukunftssicherheit</td>
+<td>Begrenzt</td>
+<td>✅ Standard</td>
+</tr>
+<tr>
+<td>Komplexität</td>
+<td>Einfacher</td>
+<td>Höher</td>
+</tr>
+</tbody>
+</table>
+<h3 id="agent-als-systemd-service">3.1 Agent als systemd Service ✅</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />Service-Datei erstellen
+(<code>/etc/systemd/system/microros-agent.service</code>)</label></li>
+<li><label><input type="checkbox" checked="" />Automatischer Start bei
+Boot</label></li>
+<li><label><input type="checkbox" checked="" />Restart bei
+Absturz</label></li>
+<li><label><input type="checkbox"
+checked="" />Status-Monitoring</label></li>
+</ul>
+<p><strong>Validiert:</strong> 2025-12-13</p>
+<h3 id="motor-control-cmd_vel">3.2 Motor-Control (<code>/cmd_vel</code>)
+✅</h3>
+<ul class="task-list">
+<li><label><input type="checkbox"
+checked="" /><code>geometry_msgs/Twist</code> Subscriber
+implementieren</label></li>
+<li><label><input type="checkbox" checked="" />Differential Drive
+Kinematik (v, ω → v_left, v_right)</label></li>
+<li><label><input type="checkbox" checked="" />PWM-Ausgabe an Cytron
+MDD3A</label></li>
+<li><label><input type="checkbox"
+checked="" />Deadzone-Kompensation</label></li>
+<li><label><input type="checkbox" checked="" />Failsafe (Timeout →
+Motoren stopp)</label></li>
+<li><label><input type="checkbox" checked="" />Teleop Tastatursteuerung
+getestet</label></li>
+</ul>
+<p><strong>Topics (aktiv):</strong></p>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Topic</th>
+<th>Typ</th>
+<th>Richtung</th>
 <th>Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1m Geradeaus</td>
-<td>x=1.0m</td>
-<td>x=0.984m</td>
-<td>✅ 1.6% Fehler</td>
+<td><code>/cmd_vel</code></td>
+<td><code>geometry_msgs/Twist</code></td>
+<td>Sub</td>
+<td>✅</td>
 </tr>
 <tr>
-<td>Drift</td>
-<td>y=0.0m</td>
-<td>y=0.005m</td>
-<td>✅ 0.5cm</td>
+<td><code>/esp32/heartbeat</code></td>
+<td><code>std_msgs/Int32</code></td>
+<td>Pub</td>
+<td>✅</td>
 </tr>
 <tr>
-<td>Encoder-Sync</td>
-<td>gleich</td>
-<td>1802/1802</td>
-<td>✅ Perfekt</td>
+<td><code>/esp32/led_cmd</code></td>
+<td><code>std_msgs/Bool</code></td>
+<td>Sub</td>
+<td>✅</td>
 </tr>
 </tbody>
 </table>
-<h3 id="vergleich-open-loop-vs.-pid">Vergleich Open-Loop vs. PID</h3>
+<p><strong>Validiert:</strong> 2025-12-13</p>
+<h3 id="odometrie-odom-aktuell">3.3 Odometrie (<code>/odom</code>) ◄──
+AKTUELL</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Encoder-ISR implementieren (D6,
+D7)</label></li>
+<li><label><input type="checkbox" />Tick-Zählung
+(Interrupt-basiert)</label></li>
+<li><label><input type="checkbox" />Odometrie-Berechnung (Δx, Δy,
+Δθ)</label></li>
+<li><label><input type="checkbox" /><code>nav_msgs/Odometry</code>
+Publisher</label></li>
+<li><label><input type="checkbox" />TF-Broadcast: <code>odom</code> →
+<code>base_link</code></label></li>
+</ul>
+<p><strong>Geplante Topics:</strong></p>
 <table class="table table-compact">
 <thead>
 <tr>
-<th>Metrik</th>
-<th>Open-Loop</th>
-<th>Mit PID</th>
-<th>Verbesserung</th>
+<th>Topic</th>
+<th>Typ</th>
+<th>Frequenz</th>
+<th>Beschreibung</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Distanzfehler</td>
-<td>16%</td>
-<td>1.6%</td>
-<td><strong>10× besser</strong></td>
+<td><code>/odom</code></td>
+<td><code>nav_msgs/Odometry</code></td>
+<td>50 Hz</td>
+<td>Position &amp; Orientierung</td>
 </tr>
 <tr>
-<td>Drift</td>
-<td>14 cm</td>
-<td>0.5 cm</td>
-<td><strong>28× besser</strong></td>
+<td><code>/tf</code></td>
+<td><code>tf2_msgs/TFMessage</code></td>
+<td>50 Hz</td>
+<td>Transform odom→base_link</td>
+</tr>
+</tbody>
+</table>
+<h3 id="imu-integration-optional">3.4 IMU Integration (Optional) ⬜</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />MPU6050 über I2C ansprechen
+(D4/D5)</label></li>
+<li><label><input type="checkbox" /><code>sensor_msgs/Imu</code>
+Publisher</label></li>
+<li><label><input type="checkbox" />Orientierung
+(Quaternion)</label></li>
+<li><label><input type="checkbox" />TF: <code>base_link</code> →
+<code>imu_link</code></label></li>
+</ul>
+<hr />
+<h2 id="phase-3-validierung">📋 Phase 3 Validierung</h2>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Test</th>
+<th>Kriterium</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agent Service</td>
+<td>Startet automatisch nach Reboot</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>cmd_vel → Motor</td>
+<td>Teleop funktioniert</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Failsafe</td>
+<td>Motoren stoppen nach 500ms</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Odometrie</td>
+<td>1m Test &lt; 5% Fehler</td>
+<td>⬜</td>
+</tr>
+<tr>
+<td>TF Tree</td>
+<td>odom → base_link korrekt</td>
+<td>⬜</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="phase-3-slam-aktuell">🎯 Phase 3: SLAM (AKTUELL)</h2>
-<h3 id="lidar-integration">3.1 LiDAR Integration</h3>
+<h2 id="nächste-phasen-vorschau">🔜 Nächste Phasen (Vorschau)</h2>
+<h3 id="phase-4-lidar-slam">Phase 4: LiDAR + SLAM</h3>
 <ul class="task-list">
 <li><label><input type="checkbox" />RPLIDAR A1 in Docker
 einbinden</label></li>
-<li><label><input type="checkbox" /><code>/scan</code> Topic
-verifizieren</label></li>
-<li><label><input type="checkbox" />TF: <code>base_link</code> →
-<code>laser_frame</code></label></li>
-</ul>
-<h3 id="slam-toolbox">3.2 SLAM Toolbox</h3>
-<ul class="task-list">
 <li><label><input type="checkbox" />slam_toolbox
 konfigurieren</label></li>
-<li><label><input type="checkbox" />Online Async SLAM
-starten</label></li>
 <li><label><input type="checkbox" />Testraum kartieren</label></li>
-</ul>
-<h3 id="validierung">3.3 Validierung</h3>
-<ul class="task-list">
 <li><label><input type="checkbox" />Karte speichern (PGM +
 YAML)</label></li>
-<li><label><input type="checkbox" />Karte in RViz2
-visualisieren</label></li>
-<li><label><input type="checkbox" />Lokalisierungsgenauigkeit
-prüfen</label></li>
 </ul>
-<hr />
-<h2 id="nächste-phasen-vorschau">📋 Nächste Phasen (Vorschau)</h2>
-<h3 id="phase-4-navigation">Phase 4: Navigation</h3>
+<h3 id="phase-5-navigation-nav2">Phase 5: Navigation (Nav2)</h3>
 <ul class="task-list">
 <li><label><input type="checkbox" />Nav2 Stack
 konfigurieren</label></li>
@@ -247,128 +319,98 @@ konfigurieren</label></li>
 <li><label><input type="checkbox" />Autonome Punkt-zu-Punkt
 Navigation</label></li>
 </ul>
-<h3 id="phase-5-kamera-ai">Phase 5: Kamera + AI</h3>
+<h3 id="phase-6-kamera-ai">Phase 6: Kamera + AI</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" />IMX296 Global Shutter
-integrieren</label></li>
+<li><label><input type="checkbox" />IMX296 Global Shutter</label></li>
 <li><label><input type="checkbox" />YOLOv8 auf Hailo-8L</label></li>
 <li><label><input type="checkbox" />Personen-Erkennung →
-Stopp-Verhalten</label></li>
+Stopp</label></li>
 </ul>
-<h3 id="phase-6-integration">Phase 6: Integration</h3>
+<h3 id="phase-7-integration">Phase 7: Integration</h3>
 <ul class="task-list">
 <li><label><input type="checkbox" />Sensor Fusion (EKF)</label></li>
-<li><label><input type="checkbox" />Systemstart
-automatisieren</label></li>
 <li><label><input type="checkbox" />Demo vorbereiten</label></li>
 </ul>
 <hr />
-<h2 id="dokumentation">📚 Dokumentation</h2>
-<table class="table table-compact">
-<thead>
-<tr>
-<th>Datei</th>
-<th>Inhalt</th>
-<th>Status</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>01-Pi-OS-flashen.md</code></td>
-<td>OS-Installation, SSH, Docker</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><code>02-hailo-setup.md</code></td>
-<td>HailoRT 4.23.0, Benchmark</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><code>03-ros2-docker.md</code></td>
-<td>Container-Setup, URDF</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><code>04-esp32-firmware.md</code></td>
-<td>PlatformIO Firmware</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><code>08-entwicklerdoku-status.md</code></td>
-<td>Projektstatus</td>
-<td>✅ Aktualisiert</td>
-</tr>
-<tr>
-<td><code>AMR_Implementierungsplan.md</code></td>
-<td>Phasenplan</td>
-<td>✅</td>
-</tr>
-<tr>
-<td><code>Industriestandards-AMR.md</code></td>
-<td>REP-103, REP-105</td>
-<td>✅</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="zeitplan">📅 Zeitplan</h2>
+<h2 id="revidierter-zeitplan">📅 Revidierter Zeitplan</h2>
 <pre><code>Woche:  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
         ════════════════════════════════════════════════════
 Phase 0 ████                                                 Fundament     ✅
 Phase 1       ████                                           Motor-Test    ✅
 Phase 2             ████                                     Odometrie     ✅
-Phase 3                   ██████                             SLAM          ◄── AKTUELL
-Phase 4                            ██████                    Navigation
-Phase 5                                     ██████           Kamera/AI
-Phase 6                                              ██████  Integration
+Phase 3                   ████                               micro-ROS     ◄── AKTUELL
+Phase 4                         ████                         SLAM
+Phase 5                               ██████                 Navigation
+Phase 6                                       ████           Kamera/AI
+Phase 7                                             ████     Integration
         ════════════════════════════════════════════════════</code></pre>
 <hr />
-<h2 id="checkliste-pro-phase">✅ Checkliste pro Phase</h2>
-<p>Jede Phase ist erst abgeschlossen, wenn:</p>
-<ul class="task-list">
-<li><label><input type="checkbox" checked="" />Die definierten Tests
-bestanden sind</label></li>
-<li><label><input type="checkbox" checked="" />Der Code committet und
-dokumentiert ist</label></li>
-<li><label><input type="checkbox" checked="" />Die Konfigurationsdateien
-versioniert sind</label></li>
-<li><label><input type="checkbox" checked="" />Ein kurzes Protokoll die
-Ergebnisse festhält</label></li>
-<li><label><input type="checkbox" checked="" />Der nächste Schritt klar
-ist</label></li>
-</ul>
-<p><strong>Phase 1:</strong> ✅ Alle Punkte erfüllt <strong>Phase
-2:</strong> ✅ Alle Punkte erfüllt</p>
-<hr />
-<h2 id="aktuelle-software-versionen">🔧 Aktuelle Software-Versionen</h2>
+<h2 id="software-versionen">🔧 Software-Versionen</h2>
 <table class="table table-compact">
 <thead>
 <tr>
 <th>Komponente</th>
 <th>Version</th>
+<th>Ort</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>ESP32 Firmware</td>
-<td><strong>v0.5.0-pid</strong></td>
+<td>micro-ROS Firmware</td>
+<td><strong>v2.0.0</strong></td>
+<td><code>esp32_microros_test/</code></td>
 </tr>
 <tr>
-<td>Serial Bridge</td>
-<td>v0.4.0-odom</td>
+<td>micro-ROS Agent</td>
+<td>Humble (Docker)</td>
+<td>systemd Service</td>
 </tr>
 <tr>
-<td>Docker Stack</td>
-<td>perception + serial_bridge</td>
-</tr>
-<tr>
-<td>Git Repo</td>
-<td>unger-robotics/amr-platform</td>
+<td>Serial-Bridge (Backup)</td>
+<td>v0.5.0-pid</td>
+<td><code>firmware_serial/</code></td>
 </tr>
 </tbody>
 </table>
 <hr />
-<p><em>Aktualisiert: 2025-12-12 | Phase 2 abgeschlossen</em></p>
+<h2 id="projekt-struktur-aktualisiert">📁 Projekt-Struktur
+(aktualisiert)</h2>
+<pre><code>amr-platform/
+├── esp32_microros_test/     # ◄── AKTIV (micro-ROS v2.0.0)
+│   ├── include/config.h
+│   ├── src/main.cpp
+│   ├── platformio.ini
+│   └── README.md
+├── firmware_serial/          # Backup (Serial-Bridge)
+├── firmware_test/            # Hardware-Tests
+├── docker/
+│   └── docker-compose.yml   # serial_bridge entfernt
+├── scripts/
+│   ├── setup_microros_service.sh
+│   └── microros-agent.service
+├── ros2_ws/
+└── docs/</code></pre>
+<hr />
+<h2 id="checkliste-phase-3-abgeschlossen-wenn">✅ Checkliste: Phase 3
+abgeschlossen wenn</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" />Agent startet automatisch
+bei Boot</label></li>
+<li><label><input type="checkbox" checked="" /><code>/cmd_vel</code>
+steuert Motoren</label></li>
+<li><label><input type="checkbox" checked="" />Teleop
+funktioniert</label></li>
+<li><label><input type="checkbox" checked="" />Failsafe
+getestet</label></li>
+<li><label><input type="checkbox" /><code>/odom</code> publiziert
+Position</label></li>
+<li><label><input type="checkbox" />TF-Tree ist korrekt</label></li>
+<li><label><input type="checkbox" />Code committet und
+dokumentiert</label></li>
+<li><label><input type="checkbox" />README.md aktualisiert</label></li>
+</ul>
+<hr />
+<p><em>Aktualisiert: 2025-12-13 | Phase 3.1 + 3.2 abgeschlossen</em></p>
 </div>
 </body>
 </html>

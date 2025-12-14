@@ -119,7 +119,8 @@
 // 4. SAFETY STANDARDS
 // ==========================================================================
 
-#define FAILSAFE_TIMEOUT_MS 500 // Stopp bei fehlendem Heartbeat
+// Erhöht auf 1000ms für stabilere DDS-Verbindung (verhindert Ruckeln)
+#define FAILSAFE_TIMEOUT_MS 1000
 
 #define ENABLE_TASK_WDT true
 #define TASK_WDT_TIMEOUT_S 5
@@ -131,11 +132,12 @@
 // 5. TIMING & LOOP RATES
 // ==========================================================================
 
-#define LOOP_RATE_HZ 100 // Haupt-Regelschleife
-#define LOOP_PERIOD_MS (1000 / LOOP_RATE_HZ)
+#define LOOP_RATE_HZ 100                     // Haupt-Regelschleife (Core 0)
+#define LOOP_PERIOD_MS (1000 / LOOP_RATE_HZ) // 10ms
 
-#define ODOM_PUBLISH_HZ 50 // Odometrie
-#define ODOM_PERIOD_MS (1000 / ODOM_PUBLISH_HZ)
+// Reduziert auf 20 Hz, um Serial-Bandbreite für Befehle freizuhalten
+#define ODOM_PUBLISH_HZ 20
+#define ODOM_PERIOD_MS (1000 / ODOM_PUBLISH_HZ) // 50ms
 
 // ==========================================================================
 // 6. DEBUG & DIAGNOSTICS
