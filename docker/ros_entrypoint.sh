@@ -1,15 +1,12 @@
 #!/bin/bash
 set -e
 
-# ROS 2 Setup
-source /opt/ros/jazzy/setup.bash
+# ROS 2 Umgebung laden
+source "/opt/ros/humble/setup.bash"
 
-# Workspace Setup (falls gebaut)
-if [ -f /ros_ws/install/setup.bash ]; then
-    source /ros_ws/install/setup.bash
+# Falls der Workspace schon gebaut wurde, lade ihn auch
+if [ -f "/root/ros2_ws/install/setup.bash" ]; then
+  source "/root/ros2_ws/install/setup.bash"
 fi
-
-# Colcon Autocomplete
-source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash
 
 exec "$@"
