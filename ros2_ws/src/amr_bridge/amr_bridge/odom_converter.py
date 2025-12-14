@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from geometry_msgs.msg import Pose2D, TransformStamped
+from geometry_msgs.msg import Pose2D, TransformStamped, Quaternion # <--- Quaternion neu dazu
 from nav_msgs.msg import Odometry
 from tf2_ros import TransformBroadcaster
 
@@ -131,13 +131,19 @@ class OdomConverter(Node):
         """
         Konvertiert Euler-Winkel in Quaternion (x, y, z, w)
         """
+        # Berechnung der Quaternion-Komponenten
         qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
         qy = math.cos(roll/2) * math.sin(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.cos(pitch/2) * math.sin(yaw/2)
         qz = math.cos(roll/2) * math.cos(pitch/2) * math.sin(yaw/2) - math.sin(roll/2) * math.sin(pitch/2) * math.cos(yaw/2)
         qw = math.cos(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
 
-        # ROS 2 Geometry Msgs Quaternion Format
-        q_msg = type('Quaternion', (object,), {'x': qx, 'y': qy, 'z': qz, 'w': qw})
+        # Erstellen des echten ROS 2 Objekts
+        q_msg = Quaternion()
+        q_msg.x = qx
+        q_msg.y = qy
+        q_msg.z = qz
+        q_msg.w = qw
+
         return q_msg
 
 def main(args=None):
