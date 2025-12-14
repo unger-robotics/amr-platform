@@ -107,9 +107,9 @@
 //   2. Ki erhöht (0.5 → 5.0) bis stationärer Fehler eliminiert
 //   3. Kd beibehalten (0.01) - kein Überschwingen beobachtet
 
-#define PID_KP 13.0f // Proportional - Hauptkorrektur
-#define PID_KI 5.0f  // Integral - Drift + stationärer Fehler
-#define PID_KD 0.01f // Derivative - Dämpfung
+#define PID_KP 1.0f // 0.5f // Drift nach links, Proportional - Hauptkorrektur
+#define PID_KI 0.0f // 0.0f  // Integral - Drift + stationärer Fehler
+#define PID_KD 0.0f // 0.01f // Derivative - Dämpfung
 
 // --- Geschwindigkeitslimits ---
 #define MAX_LINEAR_SPEED 0.5f  // [m/s]
@@ -120,7 +120,7 @@
 // ==========================================================================
 
 // Erhöht auf 1000ms für stabilere DDS-Verbindung (verhindert Ruckeln)
-#define FAILSAFE_TIMEOUT_MS 1000
+#define FAILSAFE_TIMEOUT_MS 4000
 
 #define ENABLE_TASK_WDT true
 #define TASK_WDT_TIMEOUT_S 5

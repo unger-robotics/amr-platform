@@ -318,9 +318,30 @@ void controlTask(void *pvParameters) {
             float dist_l = dn_l * METERS_PER_TICK_LEFT;
             float dist_right = dn_r * METERS_PER_TICK_RIGHT;
 
-            // Low-Pass Filter für Geschwindigkeit (Glättung)
-            v_enc_l = 0.7 * v_enc_l + 0.3 * (dist_l / dt);
-            v_enc_r = 0.7 * v_enc_r + 0.3 * (dist_right / dt);
+            // 1. Rohe Geschwindigkeit berechnen (immer positiv bei
+            // Single-Channel Encoder)
+            float raw_v_l = dist_l / dt;
+            float raw_v_r = dist_right / dt;
+
+            // 2. RICHTUNGS-HEURISTIK (Der entscheidende Fix!)
+            // Wenn wir rückwärts fahren WOLLEN (target < 0), machen wir die
+            // Messung negativ. Wir greifen hier auf target_v zu, das wir oben
+            // aus dem Mutex geholt haben. Da wir Differential Drive haben,
+            // schauen wir auf die individuelle Rad-Anforderung.
+
+            // Ziel-Geschwindigkeit für die Räder berechnen (aus target_v und
+            // target_w)
+            float check_set_v_l = target_v - (target_w * WHEEL_BASE / 2.0f);
+            float check_set_v_r = target_v + (target_w * WHEEL_BASE / 2.0f);
+
+            if (check_set_v_l < -0.01)
+                raw_v_l = -fabs(raw_v_l);
+            if (check_set_v_r < -0.01)
+                raw_v_r = -fabs(raw_v_r);
+
+            // 3. Low-Pass Filter anwenden
+            v_enc_l = 0.7 * v_enc_l + 0.3 * raw_v_l;
+            v_enc_r = 0.7 * v_enc_r + 0.3 * raw_v_r;
 
             // Odometrie Integration (Differential Drive Kinematik)
             float d_center = (dist_l + dist_right) / 2.0f;
@@ -348,8 +369,21 @@ void controlTask(void *pvParameters) {
         float set_v_r = target_v + (target_w * WHEEL_BASE / 2.0f);
 
         // PID Berechnung
+        /*
         float pwm_l = pid_left.compute(set_v_l, v_enc_l, dt);
         float pwm_r = pid_right.compute(set_v_r, v_enc_r, dt);
+        */
+
+        // --- NEUER TEST-CODE (OPEN LOOP) ---
+        // Wir leiten die Wunsch-Geschwindigkeit direkt an den Motor weiter.
+        // Annahme für den Test: 1.0 m/s entspricht 100% PWM (PWM Faktor 1.0)
+
+        // Eventuell müssen wir den Wert verstärken, falls er zu langsam ist.
+        // Ein Faktor von 1.5 oder 2.0 hilft oft.
+        float feedforward_gain = 1.0f;
+
+        float pwm_l = set_v_l * feedforward_gain;
+        float pwm_r = set_v_r * feedforward_gain;
 
         // Hardware ansteuern
         hal_motor_write(pwm_l, pwm_r);
