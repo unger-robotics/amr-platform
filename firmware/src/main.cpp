@@ -381,9 +381,16 @@ void controlTask(void *pvParameters) {
         float set_v_l = target_v - (target_w * WHEEL_BASE / 2.0f);
         float set_v_r = target_v + (target_w * WHEEL_BASE / 2.0f);
 
-        // PID Berechnung (Parameter aus config.h: Kp=1.0, Ki=0.0, Kd=0.0)
-        float pwm_l = pid_left.compute(set_v_l, v_enc_l, dt);
-        float pwm_r = pid_right.compute(set_v_r, v_enc_r, dt);
+        // Feedforward + PID (Feedforward für Open-Loop, PID für Feinkorrektur)
+        float feedforward_gain = 2.0f; // 1.0 / MAX_LINEAR_SPEED (0.5 m/s)
+        float pwm_l =
+            feedforward_gain * set_v_l + pid_left.compute(set_v_l, v_enc_l, dt);
+        float pwm_r = feedforward_gain * set_v_r +
+                      pid_right.compute(set_v_r, v_enc_r, dt);
+
+        // Begrenzen auf PWM-Bereich
+        pwm_l = constrain(pwm_l, -1.0f, 1.0f);
+        pwm_r = constrain(pwm_r, -1.0f, 1.0f);
 
         // Hardware ansteuern
         hal_motor_write(pwm_l, pwm_r);
@@ -446,6 +453,14 @@ void setup() {
     dataMutex = xSemaphoreCreateMutex();
     shared_data.last_cmd_time = millis();
 
+    // NEU: Explizit auf 0 setzen
+    shared_data.target_lin_x = 0;
+    shared_data.target_ang_z = 0;
+    shared_data.led_cmd_active = false;
+    shared_data.odom_x = 0;
+    shared_data.odom_y = 0;
+    shared_data.odom_theta = 0;
+
     // 3. Start Control Task auf Core 0 (Priorität: Hoch)
     // Stackgröße: 4096 Byte, Prio: configMAX_PRIORITIES - 1
     xTaskCreatePinnedToCore(controlTask, "ControlLoop", 4096, NULL,
@@ -500,7 +515,7 @@ void setup() {
 void loop() {
     // 1. micro-ROS Kommunikation verarbeiten
     // Spinnt für kurze Zeit, um eingehende Pakete zu checken
-    rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1));
+    rclc_executor_spin_some(&executor, RCL_MS_TO_NS(50));
 
     // 2. Odometrie Publizieren (Rate limitiert auf 20 Hz zur
     // Bandbreitenschonung)
@@ -526,4 +541,6 @@ void loop() {
         msg_heartbeat.data++;
         rcl_publish(&pub_heartbeat, &msg_heartbeat, NULL);
     }
+    // 4. Yield to prevent serial buffer overflow
+    delay(1);
 }

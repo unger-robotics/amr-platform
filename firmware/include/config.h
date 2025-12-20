@@ -25,11 +25,11 @@
 #define PIN_MOTOR_RIGHT_A D2 // MDD3A M2A (Vorwärts-PWM)
 #define PIN_MOTOR_RIGHT_B D3 // MDD3A M2B (Rückwärts-PWM)
 
-// PWM-Kanäle (ESP32 LEDC)
-#define PWM_CH_LEFT_A 0
-#define PWM_CH_LEFT_B 1
-#define PWM_CH_RIGHT_A 2
-#define PWM_CH_RIGHT_B 3
+// PWM-Kanäle (ESP32 LEDC) - A und B getauscht für korrekte Richtung
+#define PWM_CH_LEFT_A 1  // war 0
+#define PWM_CH_LEFT_B 0  // war 1
+#define PWM_CH_RIGHT_A 3 // war 2
+#define PWM_CH_RIGHT_B 2 // war 3
 
 // --- Odometrie (Hall-Encoder JGA25-370) ---
 #define PIN_ENC_LEFT_A D6  // Interrupt-fähig
@@ -107,7 +107,7 @@
 //   2. Ki erhöht (0.5 → 5.0) bis stationärer Fehler eliminiert
 //   3. Kd beibehalten (0.01) - kein Überschwingen beobachtet
 
-#define PID_KP 1.0f // 0.5f // Drift nach links, Proportional - Hauptkorrektur
+#define PID_KP 0.0f // 1.0f // Drift nach links, Proportional - Hauptkorrektur
 #define PID_KI 0.0f // 0.0f  // Integral - Drift + stationärer Fehler
 #define PID_KD 0.0f // 0.01f // Derivative - Dämpfung
 
@@ -120,7 +120,7 @@
 // ==========================================================================
 
 // Erhöht auf 1000ms für stabilere DDS-Verbindung (verhindert Ruckeln)
-#define FAILSAFE_TIMEOUT_MS 1000
+#define FAILSAFE_TIMEOUT_MS 2000 // war 1000
 
 #define ENABLE_TASK_WDT true
 #define TASK_WDT_TIMEOUT_S 5

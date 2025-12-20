@@ -2,7 +2,7 @@
 
 ## Vom Schaltplan zur autonomen Navigation
 
-> **Version:** 1.3 | **Stand:** 2025-12-12 | **Firmware:** v0.5.0-pid
+> **Version:** 2.0 | **Stand:** 2025-12-20 | **Firmware:** v3.2.0
 
 ---
 
@@ -16,61 +16,104 @@ Ein häufiger Fehler bei Robotik-Projekten: Man baut zuerst die gesamte Hardware
 Klassisch (riskant):          Unser Weg (inkrementell):
 
 ┌──────────────────┐          Phase 1: ──────────────────► ✅
-│    Navigation    │                   Motor + Failsafe
+│    Navigation    │                   micro-ROS + Motor
 ├──────────────────┤
 │   Wahrnehmung    │          Phase 2: ──────────────────► ✅
-├──────────────────┤                   + Encoder + Odom + PID
+├──────────────────┤                   Docker-Infrastruktur
 │    Firmware      │
 ├──────────────────┤          Phase 3: ──────────────────► ◄── AKTUELL
-│    Hardware      │                   + LiDAR + SLAM
+│    Hardware      │                   RPLidar + Scan
 └──────────────────┘
        ↓                      Phase 4: ──────────────────►
-  Big Bang Test                        + Navigation
+  Big Bang Test                        EKF + Sensor Fusion
   (Chaos)
                               Phase 5: ──────────────────►
-                                       + Kamera + AI
+                                       SLAM + Karte
+
+                              Phase 6: ──────────────────►
+                                       Nav2 + Autonomie
 ```
 
 ---
 
-## Phase 0: Fundament (Woche 1–2) ✅
+## Phasen-Übersicht
 
-**Ziel:** Eine saubere Entwicklungsumgebung, die uns später keine Steine in den Weg legt.
-
-**Status:** ✅ Abgeschlossen
-
-- Raspberry Pi OS Lite (64-bit, Bookworm)
-- Docker und Docker Compose
-- Hailo-8L Treiber (HailoRT 4.23.0)
-- Git-Workflow Mac ↔ GitHub ↔ Pi
+| Phase | Beschreibung | Status |
+|-------|--------------|--------|
+| Phase 1 | micro-ROS auf ESP32-S3 (USB-Serial) | ✅ Abgeschlossen |
+| Phase 2 | Docker-Infrastruktur | ✅ Vorhanden |
+| Phase 3 | RPLidar A1 Integration | ◄── **AKTUELL** |
+| Phase 4 | EKF Sensor Fusion | ⬜ |
+| Phase 5 | SLAM (slam_toolbox) | ⬜ |
+| Phase 6 | Nav2 Autonome Navigation | ⬜ |
 
 ---
 
-## Phase 1: Der erste Lebenshauch (Woche 3–4) ✅
+## Phase 1: micro-ROS auf ESP32-S3 ✅
 
-**Ziel:** Ein Rad dreht sich auf Befehl. Das klingt trivial – ist aber der Beweis, dass die gesamte Kette von ROS 2 bis zum Motor funktioniert.
+**Ziel:** Native ROS 2 Kommunikation über USB-Serial mit Dual-Core FreeRTOS Architektur.
 
-**Status:** ✅ Abgeschlossen (2025-12-12)
+**Status:** ✅ Abgeschlossen (2025-12-20) | Firmware v3.2.0
 
-### 1.1 Erreichte Meilensteine
+### 1.1 Architektur
 
-| Komponente | Status |
-|------------|--------|
-| ESP32 Serial-Bridge Firmware | ✅ v0.3.0-serial |
-| Differential Drive Kinematik | ✅ |
-| Deadzone-Kompensation | ✅ |
-| Failsafe (500ms Timeout) | ✅ |
-| ROS 2 Serial Bridge Node | ✅ |
-| Docker Integration | ✅ |
-| Teleop Tastatursteuerung | ✅ |
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ESP32-S3 (micro-ROS Client)                                │
+│                                                             │
+│  Core 0: Control Task (100 Hz)                              │
+│    - Feedforward-Steuerung (Gain=2.0)                       │
+│    - Encoder-Auswertung (ISR)                               │
+│    - Odometrie-Integration                                  │
+│    - Failsafe-Check (2000ms Timeout)                        │
+│                                                             │
+│  Core 1: Communication (micro-ROS)                          │
+│    - Executor Spin                                          │
+│    - Odom Publish @ 20 Hz                                   │
+│    - Heartbeat Publish @ 1 Hz                               │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                      USB-CDC (921600 Baud)
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Raspberry Pi 5 (Docker)                                    │
+│  Container: amr_agent (micro-ros-agent)                     │
+│  Container: amr_dev (ROS 2 Humble)                          │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### 1.2 Architektur-Entscheidung
+### 1.2 Topics
 
-**Problem:** micro-ROS Build scheitert an Python 3.13 (Raspberry Pi OS Bookworm)
+| Topic | Typ | Richtung | Beschreibung |
+|-------|-----|----------|--------------|
+| `/cmd_vel` | `geometry_msgs/Twist` | Sub | Geschwindigkeitsbefehle |
+| `/odom_raw` | `geometry_msgs/Pose2D` | Pub | Odometrie (x, y, theta) |
+| `/esp32/heartbeat` | `std_msgs/Int32` | Pub | Lebenszeichen |
+| `/esp32/led_cmd` | `std_msgs/Bool` | Sub | LED-Steuerung |
 
-**Lösung:** Serial-Bridge als Workaround
+### 1.3 Konfiguration
 
-### 1.3 Cytron MDD3A – Dual-PWM Steuerung
+| Parameter | Wert |
+|-----------|------|
+| Baudrate | 921600 |
+| Feedforward Gain | 2.0 |
+| PID | Deaktiviert (Kp=0) |
+| Failsafe Timeout | 2000 ms |
+| PWM-Kanäle | Getauscht (A↔B) |
+
+### 1.4 Testergebnisse
+
+| Test | Status |
+|------|--------|
+| Vorwärts | ✅ |
+| Rückwärts | ✅ |
+| Drehen links | ✅ |
+| Drehen rechts | ✅ |
+| Failsafe (2s) | ✅ |
+| Odom plausibel | ✅ |
+
+### 1.5 Cytron MDD3A – Dual-PWM Steuerung
 
 > ⚠️ **Kritisch:** Der MDD3A verwendet **kein** DIR-Pin, sondern zwei PWM-Signale pro Motor!
 
@@ -79,130 +122,147 @@ Klassisch (riskant):          Unser Weg (inkrementell):
 | 200 | 0 | Vorwärts |
 | 0 | 200 | Rückwärts |
 | 0 | 0 | Coast (Auslaufen) |
-| 200 | 200 | Active Brake |
 
-**Meilenstein Phase 1:** ✅ Teleop funktioniert, Failsafe aktiv.
-
----
-
-## Phase 2: Bewegung mit Feedback (Woche 5–6) ✅
-
-**Ziel:** Der Roboter weiß, wo er ist (Odometrie) und fährt präzise geradeaus (PID-Regelung).
-
-**Status:** ✅ Abgeschlossen (2025-12-12)
-
-### 2.1 Encoder-Kalibrierung
-
-**Methode:** 10-Umdrehungen-Test mit `calibration_encoder.cpp`
-
-| Rad | Ticks (10 Umdrehungen) | Ticks/Rev | Theoretisch |
-|-----|------------------------|-----------|-------------|
-| Links | 3743 | **374.3** | 390.5 |
-| Rechts | 3736 | **373.6** | 390.5 |
-
-Die kalibrierten Werte weichen 4,2 % vom theoretischen Wert ab (Getriebespiel, Toleranzen).
-
-### 2.2 Odometrie-Berechnung
-
-**Differentialkinematik:**
-
-```
-d_left  = (delta_ticks_left / TICKS_PER_REV) × WHEEL_CIRCUMFERENCE
-d_right = (delta_ticks_right / TICKS_PER_REV) × WHEEL_CIRCUMFERENCE
-
-d_center = (d_left + d_right) / 2
-d_theta  = (d_right - d_left) / WHEEL_BASE
-
-x += d_center × cos(theta + d_theta/2)
-y += d_center × sin(theta + d_theta/2)
-theta += d_theta
-```
-
-### 2.3 PID-Geschwindigkeitsregelung
-
-**Problem (Open-Loop):**
-
-- Distanzfehler: 16 % (1.158 m statt 1.0 m)
-- Drift: 14 cm nach links (rechtes Rad 3,7 % schneller)
-
-**Lösung:** Closed-Loop PID-Regelung pro Rad
-
-```
-                    ┌─────────────────────────────────────────────────────┐
-                    │              Pro Rad (links/rechts)                 │
-                    │                                                     │
-  Soll-v ──────────►│  ┌───────┐      ┌───────┐      ┌───────┐          │
-  (cmd_vel)         │  │  PID  │──────│  PWM  │──────│ Motor │──────┬───│───► Rad
-                    │  │Regler │      │Treiber│      │       │      │   │
-                    │  └───────┘      └───────┘      └───────┘      │   │
-                    │       ▲                                       │   │
-                    │       │         ┌───────────┐                 │   │
-                    │       └─────────│  Encoder  │◄────────────────┘   │
-                    │         Ist-v   │  → v_ist  │                     │
-                    │                 └───────────┘                     │
-                    └─────────────────────────────────────────────────────┘
-```
-
-### 2.4 PID-Tuning Ergebnis
-
-**Tuning-Methode:** Manuell (inkrementell) am 2025-12-12
-
-| Parameter | Startwert | Endwert | Funktion |
-|-----------|-----------|---------|----------|
-| **Kp** | 2.0 | **13.0** | Hauptkorrektur – erhöht bis Soll-v erreicht |
-| **Ki** | 0.5 | **5.0** | Stationärer Fehler – eliminiert Drift |
-| **Kd** | 0.01 | **0.01** | Dämpfung – kein Überschwingen beobachtet |
-
-### 2.5 Validierung (Bodentest 1m @ 0.2 m/s)
-
-| Metrik | Open-Loop | Mit PID | Verbesserung |
-|--------|-----------|---------|--------------|
-| Distanz x | 1.158 m | **0.984 m** | Fehler: 16% → **1.6%** |
-| Drift y | 14 cm | **0.5 cm** | **28× besser** |
-| Encoder L/R | 2381/2470 | **1802/1802** | Synchron! |
-
-### 2.6 Serial-Protokoll (erweitert)
-
-```
-ESP32 → Host: ODOM:<left_ticks>,<right_ticks>,<x>,<y>,<theta>\n
-Host → ESP32: PID:<Kp>,<Ki>,<Kd>\n   (Live-Tuning)
-Host → ESP32: DEBUG:ON/OFF\n         (Velocity-Nachrichten)
-```
-
-### 2.7 ROS 2 Integration
-
-- `/odom` (Typ: `nav_msgs/Odometry`) – Position und Orientierung
-- TF-Broadcast: `odom` → `base_link`
-
-**Meilenstein Phase 2:** ✅ Odometrie <2% Fehler, Drift <1cm, PID-Regelung aktiv.
+**Meilenstein Phase 1:** ✅ micro-ROS funktioniert, alle Richtungen getestet, Failsafe aktiv.
 
 ---
 
-## Phase 3: Sehen lernen – LiDAR & SLAM (Woche 7–9) ◄── AKTUELL
+## Phase 2: Docker-Infrastruktur ✅
 
-**Ziel:** Der Roboter baut eine Karte seiner Umgebung.
+**Ziel:** Container-basierte ROS 2 Umgebung für einfaches Deployment.
 
-### 3.1 LiDAR-Treiber
+**Status:** ✅ Vorhanden
+
+### 2.1 Container
+
+| Container | Image | Funktion |
+|-----------|-------|----------|
+| `amr_agent` | `microros/micro-ros-agent:humble` | Serial Agent |
+| `amr_dev` | Custom (ROS 2 Humble) | Workspace |
+
+### 2.2 docker-compose.yml
+
+```yaml
+services:
+  microros_agent:
+    image: microros/micro-ros-agent:humble
+    container_name: amr_agent
+    network_mode: host
+    privileged: true
+    restart: always
+    command: serial --dev /dev/ttyACM0 -b 921600
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+
+  amr_dev:
+    build: .
+    container_name: amr_base
+    network_mode: host
+    privileged: true
+    volumes:
+      - ../ros2_ws:/root/ros2_ws
+    command: tail -f /dev/null
+```
+
+### 2.3 Quick Start
+
+```bash
+cd ~/amr-platform/docker
+docker compose up -d
+docker compose exec amr_dev bash
+source /opt/ros/humble/setup.bash
+ros2 topic list
+```
+
+**Meilenstein Phase 2:** ✅ Docker-Container starten automatisch, Agent verbindet.
+
+---
+
+## Phase 3: RPLidar A1 Integration ◄── AKTUELL
+
+**Ziel:** 360° Laserscan für Umgebungswahrnehmung.
+
+**Status:** 🔜 Bereit (`/dev/ttyUSB0` erkannt)
+
+### 3.1 Hardware
+
+| Komponente | Port | Status |
+|------------|------|--------|
+| RPLidar A1 | `/dev/ttyUSB0` | ✅ Erkannt |
+
+### 3.2 Aufgaben
+
+- [ ] `rplidar_ros` Package installieren
+- [ ] Launch-File erstellen
+- [ ] `/scan` Topic verifizieren
+- [ ] Frame `laser` → `base_link` TF
+- [ ] RViz2 Visualisierung
+
+### 3.3 Geplante Topics
+
+| Topic | Typ | Frequenz |
+|-------|-----|----------|
+| `/scan` | `sensor_msgs/LaserScan` | 5-10 Hz |
+
+### 3.4 Launch-File (geplant)
 
 ```bash
 ros2 launch rplidar_ros rplidar_a1_launch.py
 ```
 
-### 3.2 SLAM-Toolbox
+**Meilenstein Phase 3:** `/scan` publiziert, Daten in RViz2 sichtbar.
+
+---
+
+## Phase 4: EKF Sensor Fusion
+
+**Ziel:** Robuste Odometrie durch Fusion von Encoder-Daten (später + IMU).
+
+### 4.1 Aufgaben
+
+- [ ] `robot_localization` Package
+- [ ] EKF Node konfigurieren
+- [ ] `/odom_raw` → `/odometry/filtered`
+- [ ] TF: `odom` → `base_link`
+- [ ] Optional: IMU Integration (MPU6050)
+
+### 4.2 Geplante Topics
+
+| Topic | Typ | Quelle |
+|-------|-----|--------|
+| `/odometry/filtered` | `nav_msgs/Odometry` | EKF |
+| `/tf` | `tf2_msgs/TFMessage` | EKF |
+
+**Meilenstein Phase 4:** TF-Baum korrekt, gefilterte Odometrie stabil.
+
+---
+
+## Phase 5: SLAM (slam_toolbox)
+
+**Ziel:** Der Roboter baut eine Karte seiner Umgebung.
+
+### 5.1 Aufgaben
+
+- [ ] `slam_toolbox` konfigurieren
+- [ ] Online Async SLAM
+- [ ] Testraum kartieren
+- [ ] Karte speichern (PGM + YAML)
+
+### 5.2 Launch
 
 ```bash
 ros2 launch slam_toolbox online_async_launch.py params_file:=slam_params.yaml
 ```
 
-**Meilenstein Phase 3:** Eine speicherbare Karte des Testraums existiert.
+**Meilenstein Phase 5:** Eine speicherbare Karte des Testraums existiert.
 
 ---
 
-## Phase 4: Autonome Navigation (Woche 10–12)
+## Phase 6: Nav2 Autonome Navigation
 
 **Ziel:** Wir setzen ein Ziel auf der Karte, der Roboter fährt autonom hin.
 
-### 4.1 Nav2 Stack
+### 6.1 Nav2 Stack
 
 | Komponente | Funktion |
 |------------|----------|
@@ -212,60 +272,68 @@ ros2 launch slam_toolbox online_async_launch.py params_file:=slam_params.yaml
 | **Costmap** | Hinderniskarte aus Sensordaten |
 | **BT Navigator** | Verhaltenssteuerung |
 
-**Meilenstein Phase 4:** Roboter navigiert autonom, weicht Hindernissen aus.
+**Meilenstein Phase 6:** Roboter navigiert autonom, weicht Hindernissen aus.
 
 ---
 
-## Phase 5: Wahrnehmungserweiterung – Kamera & AI (Woche 13–15)
+## Zukünftige Erweiterungen
 
-**Ziel:** Der Roboter erkennt Objekte und kann darauf reagieren.
+### Kamera & AI (Optional)
 
 - IMX296 Global Shutter Kamera
-- YOLOv8 auf Hailo-8L (31 FPS validiert)
+- YOLOv8 auf Hailo-8L
 - Personen-Erkennung → Stopp-Verhalten
 
-**Meilenstein Phase 5:** Roboter stoppt, wenn eine Person erkannt wird.
+### PID-Regelung (Optional)
+
+Aktuell nutzen wir Feedforward (Open-Loop). Für präzisere Regelung:
+
+- Encoder-Polarität korrigieren (Quadratur-Encoder oder Richtungs-Heuristik verbessern)
+- PID aktivieren (Kp=13.0, Ki=5.0, Kd=0.01 aus früheren Tests)
 
 ---
 
-## Phase 6: Integration & Härtung (Woche 16–18)
+## Hardware-Übersicht
 
-**Ziel:** Robustes System für Demo und Dokumentation.
-
-- Sensor Fusion (EKF)
-- Systemstart automatisieren
-- Demo: Karte, Waypoints, Video
-
-**Meilenstein Phase 6:** Robustes System, startet automatisch, Demo-fähig.
+| Komponente | Spezifikation | Status |
+|------------|---------------|--------|
+| Seeed XIAO ESP32-S3 | Dual-Core, USB-CDC | ✅ Aktiv |
+| Cytron MDD3A | Dual-PWM, 4-16V | ✅ Aktiv |
+| JGA25-370 (2×) | 12V DC + Encoder | ✅ Aktiv |
+| Raspberry Pi 5 | 8GB, ROS 2 Humble | ✅ Aktiv |
+| RPLidar A1 | 360° 2D Lidar | ✅ Erkannt |
+| Hailo-8L | AI Accelerator | ⬜ Später |
+| IMX296 | Global Shutter | ⬜ Später |
+| MPU6050 | IMU (I2C) | ⬜ Später |
 
 ---
 
 ## Risikomatrix
 
-| Risiko | Wahrscheinlichkeit | Impact | Mitigation |
-|--------|-------------------|--------|------------|
-| libcamera-Inkompatibilität | Niedrig | Hoch | ✅ Raspberry Pi OS |
-| Odometrie-Drift | ~~Hoch~~ | ~~Mittel~~ | ✅ **PID-Regelung** |
-| Hailo-Treiber instabil | Mittel | Mittel | Navigation funktioniert auch ohne AI |
-| Nav2-Tuning aufwändig | Hoch | Mittel | Viel Zeit einplanen |
-| micro-ROS inkompatibel | ~~Hoch~~ | ~~Hoch~~ | ✅ **Serial-Bridge** |
+| Risiko | Wahrscheinlichkeit | Impact | Status |
+|--------|-------------------|--------|--------|
+| micro-ROS inkompatibel | ~~Hoch~~ | ~~Hoch~~ | ✅ **Gelöst** |
 | MDD3A-Ansteuerung | ~~Hoch~~ | ~~Hoch~~ | ✅ **Dual-PWM** |
+| PID-Eskalation | ~~Mittel~~ | ~~Mittel~~ | ✅ **Feedforward** |
+| Motor-Richtung falsch | ~~Mittel~~ | ~~Mittel~~ | ✅ **PWM getauscht** |
+| Failsafe greift zu früh | ~~Mittel~~ | ~~Niedrig~~ | ✅ **2000ms** |
+| RPLidar-Treiber | Niedrig | Mittel | 🔜 Phase 3 |
+| Nav2-Tuning aufwändig | Hoch | Mittel | Viel Zeit einplanen |
 
 ---
 
-## Zeitplan (Übersicht)
+## Zeitplan
 
 ```
-Woche:  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
-        ════════════════════════════════════════════════════
-Phase 0 ████                                                 Fundament     ✅
-Phase 1       ████                                           Motor-Test    ✅
-Phase 2             ████                                     Odometrie     ✅
-Phase 3                   ██████                             SLAM          ◄── AKTUELL
-Phase 4                            ██████                    Navigation
-Phase 5                                     ██████           Kamera/AI
-Phase 6                                              ██████  Integration
-        ════════════════════════════════════════════════════
+Woche:  1  2  3  4  5  6  7  8
+        ════════════════════════════════
+Phase 1 ████                             ✅ micro-ROS
+Phase 2 ████                             ✅ Docker
+Phase 3       ████                       ◄── RPLidar
+Phase 4             ████                 EKF
+Phase 5                   ████           SLAM
+Phase 6                         ████     Nav2
+        ════════════════════════════════
 ```
 
 ---
@@ -280,11 +348,28 @@ Jede Phase ist erst abgeschlossen, wenn:
 - [x] Ein kurzes Protokoll die Ergebnisse festhält
 - [x] Der nächste Schritt klar ist
 
-**Phase 1:** ✅ Alle Punkte erfüllt
+**Phase 1:** ✅ Alle Punkte erfüllt (2025-12-20)
 **Phase 2:** ✅ Alle Punkte erfüllt
+
+---
+
+## Changelog
+
+### v2.0 (2025-12-20)
+
+- **Phase 1:** micro-ROS statt Serial-Bridge
+- **Firmware:** v3.2.0 mit Feedforward
+- **Architektur:** Dual-Core FreeRTOS
+- **Docker:** Container-basiertes Deployment
+- **Phasen:** Reorganisiert (6 statt 7)
+
+### v1.3 (2025-12-12)
+
+- Phase 2 (Odometrie + PID) abgeschlossen
+- Serial-Bridge Architektur (Legacy)
 
 ---
 
 *Dieser Plan folgt dem Prinzip: Jede Woche ein lauffähiges System. Lieber weniger Features, die funktionieren, als viele Features, die zusammen crashen.*
 
-*Aktualisiert: 2025-12-12 | Firmware: v0.5.0-pid | Phase 2 abgeschlossen*
+*Aktualisiert: 2025-12-20 | Firmware: v3.2.0 | Phase 1 abgeschlossen*

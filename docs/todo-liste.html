@@ -23,6 +23,71 @@
       margin: 0 0.8em 0.2em -1.6em;
       vertical-align: middle;
     }
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
   </style>
   <link rel="stylesheet" href="main-design.css" />
 </head>
@@ -30,17 +95,12 @@
 <div class="main-container">
 <h1 id="todo-liste-amr-projekt">ToDo-Liste AMR-Projekt</h1>
 <blockquote>
-<p><strong>Stand:</strong> 2025-12-13 | <strong>Aktuelle Phase:</strong>
-3.3 (Odometrie)</p>
+<p><strong>Stand:</strong> 2025-12-20 | <strong>Aktuelle Phase:</strong>
+3 (RPLidar)</p>
 </blockquote>
 <hr />
-<h2 id="phasen-übersicht-revidiert">📊 Phasen-Übersicht (Revidiert)</h2>
+<h2 id="phasen-übersicht">📊 Phasen-Übersicht</h2>
 <table class="table table-compact">
-<colgroup>
-<col style="width: 24%" />
-<col style="width: 48%" />
-<col style="width: 27%" />
-</colgroup>
 <thead>
 <tr>
 <th>Phase</th>
@@ -50,219 +110,218 @@
 </thead>
 <tbody>
 <tr>
-<td>Phase 0</td>
-<td>Fundament (OS, Docker, Hailo)</td>
-<td>✅ Abgeschlossen</td>
-</tr>
-<tr>
 <td>Phase 1</td>
-<td>Motor-Test + Teleop (Serial-Bridge)</td>
+<td>micro-ROS auf ESP32-S3 (USB-Serial)</td>
 <td>✅ Abgeschlossen</td>
 </tr>
 <tr>
 <td>Phase 2</td>
-<td>Encoder + Odometrie + PID (Serial-Bridge)</td>
-<td>✅ Abgeschlossen</td>
+<td>Docker-Infrastruktur</td>
+<td>✅ Vorhanden</td>
 </tr>
 <tr>
 <td>Phase 3</td>
-<td><strong>micro-ROS Integration</strong></td>
+<td>RPLidar A1 Integration</td>
 <td>◄── <strong>AKTUELL</strong></td>
 </tr>
 <tr>
 <td>Phase 4</td>
-<td>LiDAR + SLAM</td>
+<td>EKF Sensor Fusion</td>
 <td>⬜</td>
 </tr>
 <tr>
 <td>Phase 5</td>
-<td>Navigation (Nav2)</td>
+<td>SLAM (slam_toolbox)</td>
 <td>⬜</td>
 </tr>
 <tr>
 <td>Phase 6</td>
-<td>Kamera + AI</td>
-<td>⬜</td>
-</tr>
-<tr>
-<td>Phase 7</td>
-<td>Integration &amp; Härtung</td>
+<td>Nav2 Autonome Navigation</td>
 <td>⬜</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="phase-1-2-abgeschlossen-serial-bridge">✅ Phase 1 &amp; 2:
-Abgeschlossen (Serial-Bridge)</h2>
-<h3 id="erreichte-ziele-als-backup-vorhanden">Erreichte Ziele (als
-Backup vorhanden)</h3>
+<h2 id="phase-1-micro-ros-esp32-s3-abgeschlossen">✅ Phase 1: micro-ROS
+ESP32-S3 – ABGESCHLOSSEN</h2>
+<h3 id="firmware-v3.2.0-2025-12-20">Firmware v3.2.0 (2025-12-20)</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" checked="" />ESP32 Serial-Bridge
-Firmware v0.5.0-pid</label></li>
-<li><label><input type="checkbox" checked="" />Differential Drive mit
-PID-Regelung</label></li>
-<li><label><input type="checkbox" checked="" />Encoder-Kalibrierung
-(374.3 / 373.6 Ticks/Rev)</label></li>
-<li><label><input type="checkbox" checked="" />Odometrie (x, y,
-theta)</label></li>
-<li><label><input type="checkbox" checked="" />ROS 2 Serial Bridge
-Node</label></li>
-<li><label><input type="checkbox" checked="" />Bodentest: 1.6%
-Distanzfehler, 0.5cm Drift</label></li>
+<li><label><input type="checkbox" checked="" />micro-ROS Client über
+USB-CDC (Serial)</label></li>
+<li><label><input type="checkbox" checked="" />Dual-Core FreeRTOS (Core
+0: Control, Core 1: Comms)</label></li>
+<li><label><input type="checkbox" checked="" /><code>/cmd_vel</code> →
+Motorsteuerung (Cytron MDD3A)</label></li>
+<li><label><input type="checkbox" checked="" /><code>/odom_raw</code> →
+Odometrie (Pose2D)</label></li>
+<li><label><input type="checkbox"
+checked="" /><code>/esp32/heartbeat</code> → Lebenszeichen (1
+Hz)</label></li>
+<li><label><input type="checkbox" checked="" />Failsafe (2000ms
+Timeout)</label></li>
+<li><label><input type="checkbox" checked="" />Feedforward-Steuerung
+(Gain=2.0)</label></li>
+<li><label><input type="checkbox" checked="" />PWM-Kanäle getauscht
+(A↔︎B)</label></li>
 </ul>
-<p><strong>Hinweis:</strong> Serial-Bridge bleibt als Fallback in
-<code>firmware_serial/</code></p>
-<hr />
-<h2 id="phase-3-micro-ros-integration-aktuell">🎯 Phase 3: micro-ROS
-Integration (AKTUELL)</h2>
-<h3 id="architektur-entscheidung-2025-12-13">Architektur-Entscheidung
-(2025-12-13)</h3>
-<p><strong>Alt:</strong> Serial-Bridge (Python Parser, Custom Protokoll)
-<strong>Neu:</strong> micro-ROS (Native ROS 2 Topics, DDS-Standard)</p>
+<h3 id="konfiguration">Konfiguration</h3>
 <table class="table table-compact">
 <thead>
 <tr>
-<th>Aspekt</th>
-<th>Serial-Bridge</th>
-<th>micro-ROS</th>
+<th>Parameter</th>
+<th>Wert</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Protokoll</td>
-<td>Custom Text</td>
-<td>DDS/XRCE</td>
+<td>Baudrate</td>
+<td>921600</td>
 </tr>
 <tr>
-<td>ROS 2 Integration</td>
-<td>Bridge-Node</td>
-<td>Native</td>
+<td>Feedforward Gain</td>
+<td>2.0</td>
 </tr>
 <tr>
-<td>Zukunftssicherheit</td>
-<td>Begrenzt</td>
-<td>✅ Standard</td>
+<td>PID</td>
+<td>Deaktiviert (Kp=0)</td>
 </tr>
 <tr>
-<td>Komplexität</td>
-<td>Einfacher</td>
-<td>Höher</td>
+<td>Failsafe Timeout</td>
+<td>2000 ms</td>
+</tr>
+<tr>
+<td>Loop Rate</td>
+<td>100 Hz</td>
+</tr>
+<tr>
+<td>Odom Publish</td>
+<td>20 Hz</td>
 </tr>
 </tbody>
 </table>
-<h3 id="agent-als-systemd-service">3.1 Agent als systemd Service ✅</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" checked="" />Service-Datei erstellen
-(<code>/etc/systemd/system/microros-agent.service</code>)</label></li>
-<li><label><input type="checkbox" checked="" />Automatischer Start bei
-Boot</label></li>
-<li><label><input type="checkbox" checked="" />Restart bei
-Absturz</label></li>
-<li><label><input type="checkbox"
-checked="" />Status-Monitoring</label></li>
-</ul>
-<p><strong>Validiert:</strong> 2025-12-13</p>
-<h3 id="motor-control-cmd_vel">3.2 Motor-Control (<code>/cmd_vel</code>)
-✅</h3>
-<ul class="task-list">
-<li><label><input type="checkbox"
-checked="" /><code>geometry_msgs/Twist</code> Subscriber
-implementieren</label></li>
-<li><label><input type="checkbox" checked="" />Differential Drive
-Kinematik (v, ω → v_left, v_right)</label></li>
-<li><label><input type="checkbox" checked="" />PWM-Ausgabe an Cytron
-MDD3A</label></li>
-<li><label><input type="checkbox"
-checked="" />Deadzone-Kompensation</label></li>
-<li><label><input type="checkbox" checked="" />Failsafe (Timeout →
-Motoren stopp)</label></li>
-<li><label><input type="checkbox" checked="" />Teleop Tastatursteuerung
-getestet</label></li>
-</ul>
-<p><strong>Topics (aktiv):</strong></p>
+<h3 id="testergebnisse">Testergebnisse</h3>
 <table class="table table-compact">
 <thead>
 <tr>
-<th>Topic</th>
-<th>Typ</th>
-<th>Richtung</th>
+<th>Test</th>
 <th>Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>/cmd_vel</code></td>
-<td><code>geometry_msgs/Twist</code></td>
-<td>Sub</td>
+<td>Vorwärts</td>
 <td>✅</td>
 </tr>
 <tr>
-<td><code>/esp32/heartbeat</code></td>
-<td><code>std_msgs/Int32</code></td>
-<td>Pub</td>
+<td>Rückwärts</td>
 <td>✅</td>
 </tr>
 <tr>
-<td><code>/esp32/led_cmd</code></td>
-<td><code>std_msgs/Bool</code></td>
-<td>Sub</td>
+<td>Drehen links</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Drehen rechts</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Failsafe</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Odom plausibel</td>
 <td>✅</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Validiert:</strong> 2025-12-13</p>
-<h3 id="odometrie-odom-aktuell">3.3 Odometrie (<code>/odom</code>) ◄──
-AKTUELL</h3>
+<hr />
+<h2 id="phase-2-docker-infrastruktur-vorhanden">✅ Phase 2:
+Docker-Infrastruktur – VORHANDEN</h2>
+<h3 id="container">Container</h3>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Container</th>
+<th>Image</th>
+<th>Funktion</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>amr_agent</code></td>
+<td><code>microros/micro-ros-agent:humble</code></td>
+<td>Serial Agent</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>amr_dev</code></td>
+<td>Custom (ROS 2 Humble)</td>
+<td>Workspace</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<h3 id="docker-compose.yml">docker-compose.yml</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">services</span><span class="kw">:</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">microros_agent</span><span class="kw">:</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> microros/micro-ros-agent:humble</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">command</span><span class="kw">:</span><span class="at"> serial --dev /dev/ttyACM0 -b 921600</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">amr_dev</span><span class="kw">:</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">build</span><span class="kw">:</span><span class="at"> .</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">network_mode</span><span class="kw">:</span><span class="at"> host</span></span></code></pre></div>
+<hr />
+<h2 id="phase-3-rplidar-a1-integration-aktuell">🎯 Phase 3: RPLidar A1
+Integration – AKTUELL</h2>
+<h3 id="hardware">Hardware</h3>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Komponente</th>
+<th>Port</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RPLidar A1</td>
+<td><code>/dev/ttyUSB0</code></td>
+<td>✅ Erkannt</td>
+</tr>
+</tbody>
+</table>
+<h3 id="aufgaben">Aufgaben</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" />Encoder-ISR implementieren (D6,
-D7)</label></li>
-<li><label><input type="checkbox" />Tick-Zählung
-(Interrupt-basiert)</label></li>
-<li><label><input type="checkbox" />Odometrie-Berechnung (Δx, Δy,
-Δθ)</label></li>
-<li><label><input type="checkbox" /><code>nav_msgs/Odometry</code>
-Publisher</label></li>
-<li><label><input type="checkbox" />TF-Broadcast: <code>odom</code> →
-<code>base_link</code></label></li>
+<li><label><input type="checkbox" /><code>rplidar_ros</code> Package
+installieren</label></li>
+<li><label><input type="checkbox" />Launch-File erstellen</label></li>
+<li><label><input type="checkbox" /><code>/scan</code> Topic
+verifizieren</label></li>
+<li><label><input type="checkbox" />Scan-Daten visualisieren
+(RViz2)</label></li>
+<li><label><input type="checkbox" />Frame <code>laser</code>
+konfigurieren</label></li>
 </ul>
-<p><strong>Geplante Topics:</strong></p>
+<h3 id="geplante-topics">Geplante Topics</h3>
 <table class="table table-compact">
 <thead>
 <tr>
 <th>Topic</th>
 <th>Typ</th>
 <th>Frequenz</th>
-<th>Beschreibung</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>/odom</code></td>
-<td><code>nav_msgs/Odometry</code></td>
-<td>50 Hz</td>
-<td>Position &amp; Orientierung</td>
-</tr>
-<tr>
-<td><code>/tf</code></td>
-<td><code>tf2_msgs/TFMessage</code></td>
-<td>50 Hz</td>
-<td>Transform odom→base_link</td>
+<td><code>/scan</code></td>
+<td><code>sensor_msgs/LaserScan</code></td>
+<td>5-10 Hz</td>
 </tr>
 </tbody>
 </table>
-<h3 id="imu-integration-optional">3.4 IMU Integration (Optional) ⬜</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" />MPU6050 über I2C ansprechen
-(D4/D5)</label></li>
-<li><label><input type="checkbox" /><code>sensor_msgs/Imu</code>
-Publisher</label></li>
-<li><label><input type="checkbox" />Orientierung
-(Quaternion)</label></li>
-<li><label><input type="checkbox" />TF: <code>base_link</code> →
-<code>imu_link</code></label></li>
-</ul>
-<hr />
-<h2 id="phase-3-validierung">📋 Phase 3 Validierung</h2>
+<h3 id="validierung">Validierung</h3>
 <table class="table table-compact">
 <thead>
 <tr>
@@ -273,144 +332,199 @@ Publisher</label></li>
 </thead>
 <tbody>
 <tr>
-<td>Agent Service</td>
-<td>Startet automatisch nach Reboot</td>
-<td>✅</td>
-</tr>
-<tr>
-<td>cmd_vel → Motor</td>
-<td>Teleop funktioniert</td>
-<td>✅</td>
-</tr>
-<tr>
-<td>Failsafe</td>
-<td>Motoren stoppen nach 500ms</td>
-<td>✅</td>
-</tr>
-<tr>
-<td>Odometrie</td>
-<td>1m Test &lt; 5% Fehler</td>
+<td>RPLidar startet</td>
+<td>Motor dreht</td>
 <td>⬜</td>
 </tr>
 <tr>
-<td>TF Tree</td>
-<td>odom → base_link korrekt</td>
+<td><code>/scan</code> publiziert</td>
+<td>Daten vorhanden</td>
+<td>⬜</td>
+</tr>
+<tr>
+<td>Range korrekt</td>
+<td>0.15m - 12m</td>
+<td>⬜</td>
+</tr>
+<tr>
+<td>RViz2 Visualisierung</td>
+<td>Scan sichtbar</td>
 <td>⬜</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="nächste-phasen-vorschau">🔜 Nächste Phasen (Vorschau)</h2>
-<h3 id="phase-4-lidar-slam">Phase 4: LiDAR + SLAM</h3>
+<h2 id="phase-4-ekf-sensor-fusion">📋 Phase 4: EKF Sensor Fusion</h2>
+<h3 id="aufgaben-1">Aufgaben</h3>
 <ul class="task-list">
-<li><label><input type="checkbox" />RPLIDAR A1 in Docker
-einbinden</label></li>
-<li><label><input type="checkbox" />slam_toolbox
-konfigurieren</label></li>
-<li><label><input type="checkbox" />Testraum kartieren</label></li>
-<li><label><input type="checkbox" />Karte speichern (PGM +
-YAML)</label></li>
+<li><label><input type="checkbox" /><code>robot_localization</code>
+Package</label></li>
+<li><label><input type="checkbox" />EKF Node konfigurieren</label></li>
+<li><label><input type="checkbox" />Odom + IMU fusionieren
+(optional)</label></li>
+<li><label><input type="checkbox" /><code>/odom</code> →
+<code>/odometry/filtered</code></label></li>
+<li><label><input type="checkbox" />TF: <code>odom</code> →
+<code>base_link</code></label></li>
 </ul>
-<h3 id="phase-5-navigation-nav2">Phase 5: Navigation (Nav2)</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" />Nav2 Stack
-konfigurieren</label></li>
-<li><label><input type="checkbox" />AMCL Lokalisierung</label></li>
-<li><label><input type="checkbox" />Autonome Punkt-zu-Punkt
-Navigation</label></li>
-</ul>
-<h3 id="phase-6-kamera-ai">Phase 6: Kamera + AI</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" />IMX296 Global Shutter</label></li>
-<li><label><input type="checkbox" />YOLOv8 auf Hailo-8L</label></li>
-<li><label><input type="checkbox" />Personen-Erkennung →
-Stopp</label></li>
-</ul>
-<h3 id="phase-7-integration">Phase 7: Integration</h3>
-<ul class="task-list">
-<li><label><input type="checkbox" />Sensor Fusion (EKF)</label></li>
-<li><label><input type="checkbox" />Demo vorbereiten</label></li>
-</ul>
-<hr />
-<h2 id="revidierter-zeitplan">📅 Revidierter Zeitplan</h2>
-<pre><code>Woche:  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
-        ════════════════════════════════════════════════════
-Phase 0 ████                                                 Fundament     ✅
-Phase 1       ████                                           Motor-Test    ✅
-Phase 2             ████                                     Odometrie     ✅
-Phase 3                   ████                               micro-ROS     ◄── AKTUELL
-Phase 4                         ████                         SLAM
-Phase 5                               ██████                 Navigation
-Phase 6                                       ████           Kamera/AI
-Phase 7                                             ████     Integration
-        ════════════════════════════════════════════════════</code></pre>
-<hr />
-<h2 id="software-versionen">🔧 Software-Versionen</h2>
+<h3 id="geplante-topics-1">Geplante Topics</h3>
 <table class="table table-compact">
 <thead>
 <tr>
-<th>Komponente</th>
-<th>Version</th>
-<th>Ort</th>
+<th>Topic</th>
+<th>Typ</th>
+<th>Quelle</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>micro-ROS Firmware</td>
-<td><strong>v2.0.0</strong></td>
-<td><code>esp32_microros_test/</code></td>
+<td><code>/odometry/filtered</code></td>
+<td><code>nav_msgs/Odometry</code></td>
+<td>EKF</td>
 </tr>
 <tr>
-<td>micro-ROS Agent</td>
-<td>Humble (Docker)</td>
-<td>systemd Service</td>
-</tr>
-<tr>
-<td>Serial-Bridge (Backup)</td>
-<td>v0.5.0-pid</td>
-<td><code>firmware_serial/</code></td>
+<td><code>/tf</code></td>
+<td><code>tf2_msgs/TFMessage</code></td>
+<td>EKF</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="projekt-struktur-aktualisiert">📁 Projekt-Struktur
-(aktualisiert)</h2>
+<h2 id="phase-5-slam-slam_toolbox">📋 Phase 5: SLAM (slam_toolbox)</h2>
+<h3 id="aufgaben-2">Aufgaben</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><code>slam_toolbox</code>
+konfigurieren</label></li>
+<li><label><input type="checkbox" />Online Async SLAM</label></li>
+<li><label><input type="checkbox" />Testraum kartieren</label></li>
+<li><label><input type="checkbox" />Karte speichern (PGM +
+YAML)</label></li>
+</ul>
+<h3 id="abhängigkeiten">Abhängigkeiten</h3>
+<ul>
+<li>Phase 3 (RPLidar) ✅</li>
+<li>Phase 4 (EKF) – optional, aber empfohlen</li>
+</ul>
+<hr />
+<h2 id="phase-6-nav2-autonome-navigation">📋 Phase 6: Nav2 Autonome
+Navigation</h2>
+<h3 id="aufgaben-3">Aufgaben</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />Nav2 Stack installieren</label></li>
+<li><label><input type="checkbox" />AMCL Lokalisierung</label></li>
+<li><label><input type="checkbox" />Costmaps konfigurieren</label></li>
+<li><label><input type="checkbox" />Planner (NavFn / Smac)</label></li>
+<li><label><input type="checkbox" />Controller (DWB / RPP)</label></li>
+<li><label><input type="checkbox" />Punkt-zu-Punkt
+Navigation</label></li>
+</ul>
+<h3 id="abhängigkeiten-1">Abhängigkeiten</h3>
+<ul>
+<li>Phase 5 (SLAM / Karte)</li>
+</ul>
+<hr />
+<h2 id="hardware-übersicht">🔧 Hardware-Übersicht</h2>
+<table class="table table-compact">
+<thead>
+<tr>
+<th>Komponente</th>
+<th>Spezifikation</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seeed XIAO ESP32-S3</td>
+<td>Dual-Core, USB-CDC</td>
+<td>✅ Aktiv</td>
+</tr>
+<tr>
+<td>Cytron MDD3A</td>
+<td>Dual-PWM, 4-16V</td>
+<td>✅ Aktiv</td>
+</tr>
+<tr>
+<td>JGA25-370 (2×)</td>
+<td>12V DC + Encoder</td>
+<td>✅ Aktiv</td>
+</tr>
+<tr>
+<td>Raspberry Pi 5</td>
+<td>8GB, ROS 2 Humble</td>
+<td>✅ Aktiv</td>
+</tr>
+<tr>
+<td>RPLidar A1</td>
+<td>360° 2D Lidar</td>
+<td>✅ Erkannt</td>
+</tr>
+<tr>
+<td>Hailo-8L</td>
+<td>AI Accelerator</td>
+<td>⬜ Phase 6+</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="projekt-struktur">📁 Projekt-Struktur</h2>
 <pre><code>amr-platform/
-├── esp32_microros_test/     # ◄── AKTIV (micro-ROS v2.0.0)
+├── firmware/                 # ◄── AKTIV (v3.2.0)
 │   ├── include/config.h
 │   ├── src/main.cpp
-│   ├── platformio.ini
-│   └── README.md
-├── firmware_serial/          # Backup (Serial-Bridge)
-├── firmware_test/            # Hardware-Tests
+│   └── platformio.ini
 ├── docker/
-│   └── docker-compose.yml   # serial_bridge entfernt
-├── scripts/
-│   ├── setup_microros_service.sh
-│   └── microros-agent.service
+│   └── docker-compose.yml
 ├── ros2_ws/
-└── docs/</code></pre>
+│   └── src/
+├── docs/
+│   ├── phases/
+│   │   └── 01-microros-esp32s3.md
+│   └── phase1-befehle.md
+└── scripts/</code></pre>
+<hr />
+<h2 id="zeitplan">📅 Zeitplan</h2>
+<pre><code>Woche:  1  2  3  4  5  6  7  8
+        ════════════════════════════════
+Phase 1 ████                             ✅ Abgeschlossen
+Phase 2 ████                             ✅ Vorhanden
+Phase 3       ████                       ◄── AKTUELL
+Phase 4             ████
+Phase 5                   ████
+Phase 6                         ████
+        ════════════════════════════════</code></pre>
 <hr />
 <h2 id="checkliste-phase-3-abgeschlossen-wenn">✅ Checkliste: Phase 3
 abgeschlossen wenn</h2>
 <ul class="task-list">
-<li><label><input type="checkbox" checked="" />Agent startet automatisch
-bei Boot</label></li>
-<li><label><input type="checkbox" checked="" /><code>/cmd_vel</code>
-steuert Motoren</label></li>
-<li><label><input type="checkbox" checked="" />Teleop
-funktioniert</label></li>
-<li><label><input type="checkbox" checked="" />Failsafe
-getestet</label></li>
-<li><label><input type="checkbox" /><code>/odom</code> publiziert
-Position</label></li>
-<li><label><input type="checkbox" />TF-Tree ist korrekt</label></li>
-<li><label><input type="checkbox" />Code committet und
-dokumentiert</label></li>
-<li><label><input type="checkbox" />README.md aktualisiert</label></li>
+<li><label><input type="checkbox" />RPLidar startet
+automatisch</label></li>
+<li><label><input type="checkbox" /><code>/scan</code> publiziert
+Daten</label></li>
+<li><label><input type="checkbox" />RViz2 zeigt Scan
+korrekt</label></li>
+<li><label><input type="checkbox" />Frame <code>laser</code> →
+<code>base_link</code> TF</label></li>
+<li><label><input type="checkbox" />Dokumentation
+aktualisiert</label></li>
+<li><label><input type="checkbox" />Code committet</label></li>
 </ul>
 <hr />
-<p><em>Aktualisiert: 2025-12-13 | Phase 3.1 + 3.2 abgeschlossen</em></p>
+<h2 id="quick-start-phase-1">🚀 Quick Start (Phase 1)</h2>
+<h3 id="nach-pi-reboot">Nach Pi Reboot</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/amr-platform/docker</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose up <span class="at">-d</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">sleep</span> 5</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose logs microros_agent <span class="at">--tail</span> 5</span></code></pre></div>
+<h3 id="motor-test">Motor-Test</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose exec amr_dev bash</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">source</span> /opt/ros/humble/setup.bash</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">ros2</span> topic pub /cmd_vel geometry_msgs/msg/Twist <span class="dt">\</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;{linear: {x: 0.15}, angular: {z: 0.0}}&quot;</span> <span class="at">-r</span> 10</span></code></pre></div>
+<hr />
+<p><em>Aktualisiert: 2025-12-20 | Phase 1 abgeschlossen, Phase 3
+bereit</em></p>
 </div>
 </body>
 </html>

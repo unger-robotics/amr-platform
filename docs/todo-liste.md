@@ -1,206 +1,249 @@
 # ToDo-Liste AMR-Projekt
 
-> **Stand:** 2025-12-13 | **Aktuelle Phase:** 3.3 (Odometrie)
+> **Stand:** 2025-12-20 | **Aktuelle Phase:** 3 (RPLidar)
 
 ---
 
-## 📊 Phasen-Übersicht (Revidiert)
+## 📊 Phasen-Übersicht
 
 | Phase | Beschreibung | Status |
 |-------|--------------|--------|
-| Phase 0 | Fundament (OS, Docker, Hailo) | ✅ Abgeschlossen |
-| Phase 1 | Motor-Test + Teleop (Serial-Bridge) | ✅ Abgeschlossen |
-| Phase 2 | Encoder + Odometrie + PID (Serial-Bridge) | ✅ Abgeschlossen |
-| Phase 3 | **micro-ROS Integration** | ◄── **AKTUELL** |
-| Phase 4 | LiDAR + SLAM | ⬜ |
-| Phase 5 | Navigation (Nav2) | ⬜ |
-| Phase 6 | Kamera + AI | ⬜ |
-| Phase 7 | Integration & Härtung | ⬜ |
+| Phase 1 | micro-ROS auf ESP32-S3 (USB-Serial) | ✅ Abgeschlossen |
+| Phase 2 | Docker-Infrastruktur | ✅ Vorhanden |
+| Phase 3 | RPLidar A1 Integration | ◄── **AKTUELL** |
+| Phase 4 | EKF Sensor Fusion | ⬜ |
+| Phase 5 | SLAM (slam_toolbox) | ⬜ |
+| Phase 6 | Nav2 Autonome Navigation | ⬜ |
 
 ---
 
-## ✅ Phase 1 & 2: Abgeschlossen (Serial-Bridge)
+## ✅ Phase 1: micro-ROS ESP32-S3 – ABGESCHLOSSEN
 
-### Erreichte Ziele (als Backup vorhanden)
+### Firmware v3.2.0 (2025-12-20)
 
-- [x] ESP32 Serial-Bridge Firmware v0.5.0-pid
-- [x] Differential Drive mit PID-Regelung
-- [x] Encoder-Kalibrierung (374.3 / 373.6 Ticks/Rev)
-- [x] Odometrie (x, y, theta)
-- [x] ROS 2 Serial Bridge Node
-- [x] Bodentest: 1.6% Distanzfehler, 0.5cm Drift
+- [x] micro-ROS Client über USB-CDC (Serial)
+- [x] Dual-Core FreeRTOS (Core 0: Control, Core 1: Comms)
+- [x] `/cmd_vel` → Motorsteuerung (Cytron MDD3A)
+- [x] `/odom_raw` → Odometrie (Pose2D)
+- [x] `/esp32/heartbeat` → Lebenszeichen (1 Hz)
+- [x] Failsafe (2000ms Timeout)
+- [x] Feedforward-Steuerung (Gain=2.0)
+- [x] PWM-Kanäle getauscht (A↔B)
 
-**Hinweis:** Serial-Bridge bleibt als Fallback in `firmware_serial/`
+### Konfiguration
 
----
+| Parameter | Wert |
+|-----------|------|
+| Baudrate | 921600 |
+| Feedforward Gain | 2.0 |
+| PID | Deaktiviert (Kp=0) |
+| Failsafe Timeout | 2000 ms |
+| Loop Rate | 100 Hz |
+| Odom Publish | 20 Hz |
 
-## 🎯 Phase 3: micro-ROS Integration (AKTUELL)
+### Testergebnisse
 
-### Architektur-Entscheidung (2025-12-13)
-
-**Alt:** Serial-Bridge (Python Parser, Custom Protokoll)
-**Neu:** micro-ROS (Native ROS 2 Topics, DDS-Standard)
-
-| Aspekt | Serial-Bridge | micro-ROS |
-|--------|---------------|-----------|
-| Protokoll | Custom Text | DDS/XRCE |
-| ROS 2 Integration | Bridge-Node | Native |
-| Zukunftssicherheit | Begrenzt | ✅ Standard |
-| Komplexität | Einfacher | Höher |
-
-### 3.1 Agent als systemd Service ✅
-
-- [x] Service-Datei erstellen (`/etc/systemd/system/microros-agent.service`)
-- [x] Automatischer Start bei Boot
-- [x] Restart bei Absturz
-- [x] Status-Monitoring
-
-**Validiert:** 2025-12-13
-
-### 3.2 Motor-Control (`/cmd_vel`) ✅
-
-- [x] `geometry_msgs/Twist` Subscriber implementieren
-- [x] Differential Drive Kinematik (v, ω → v_left, v_right)
-- [x] PWM-Ausgabe an Cytron MDD3A
-- [x] Deadzone-Kompensation
-- [x] Failsafe (Timeout → Motoren stopp)
-- [x] Teleop Tastatursteuerung getestet
-
-**Topics (aktiv):**
-
-| Topic | Typ | Richtung | Status |
-|-------|-----|----------|--------|
-| `/cmd_vel` | `geometry_msgs/Twist` | Sub | ✅ |
-| `/esp32/heartbeat` | `std_msgs/Int32` | Pub | ✅ |
-| `/esp32/led_cmd` | `std_msgs/Bool` | Sub | ✅ |
-
-**Validiert:** 2025-12-13
-
-### 3.3 Odometrie (`/odom`) ◄── AKTUELL
-
-- [ ] Encoder-ISR implementieren (D6, D7)
-- [ ] Tick-Zählung (Interrupt-basiert)
-- [ ] Odometrie-Berechnung (Δx, Δy, Δθ)
-- [ ] `nav_msgs/Odometry` Publisher
-- [ ] TF-Broadcast: `odom` → `base_link`
-
-**Geplante Topics:**
-
-| Topic | Typ | Frequenz | Beschreibung |
-|-------|-----|----------|--------------|
-| `/odom` | `nav_msgs/Odometry` | 50 Hz | Position & Orientierung |
-| `/tf` | `tf2_msgs/TFMessage` | 50 Hz | Transform odom→base_link |
-
-### 3.4 IMU Integration (Optional) ⬜
-
-- [ ] MPU6050 über I2C ansprechen (D4/D5)
-- [ ] `sensor_msgs/Imu` Publisher
-- [ ] Orientierung (Quaternion)
-- [ ] TF: `base_link` → `imu_link`
+| Test | Status |
+|------|--------|
+| Vorwärts | ✅ |
+| Rückwärts | ✅ |
+| Drehen links | ✅ |
+| Drehen rechts | ✅ |
+| Failsafe | ✅ |
+| Odom plausibel | ✅ |
 
 ---
 
-## 📋 Phase 3 Validierung
+## ✅ Phase 2: Docker-Infrastruktur – VORHANDEN
+
+### Container
+
+| Container | Image | Funktion | Status |
+|-----------|-------|----------|--------|
+| `amr_agent` | `microros/micro-ros-agent:humble` | Serial Agent | ✅ |
+| `amr_dev` | Custom (ROS 2 Humble) | Workspace | ✅ |
+
+### docker-compose.yml
+
+```yaml
+services:
+  microros_agent:
+    image: microros/micro-ros-agent:humble
+    command: serial --dev /dev/ttyACM0 -b 921600
+
+  amr_dev:
+    build: .
+    network_mode: host
+```
+
+---
+
+## 🎯 Phase 3: RPLidar A1 Integration – AKTUELL
+
+### Hardware
+
+| Komponente | Port | Status |
+|------------|------|--------|
+| RPLidar A1 | `/dev/ttyUSB0` | ✅ Erkannt |
+
+### Aufgaben
+
+- [ ] `rplidar_ros` Package installieren
+- [ ] Launch-File erstellen
+- [ ] `/scan` Topic verifizieren
+- [ ] Scan-Daten visualisieren (RViz2)
+- [ ] Frame `laser` konfigurieren
+
+### Geplante Topics
+
+| Topic | Typ | Frequenz |
+|-------|-----|----------|
+| `/scan` | `sensor_msgs/LaserScan` | 5-10 Hz |
+
+### Validierung
 
 | Test | Kriterium | Status |
 |------|-----------|--------|
-| Agent Service | Startet automatisch nach Reboot | ✅ |
-| cmd_vel → Motor | Teleop funktioniert | ✅ |
-| Failsafe | Motoren stoppen nach 500ms | ✅ |
-| Odometrie | 1m Test < 5% Fehler | ⬜ |
-| TF Tree | odom → base_link korrekt | ⬜ |
+| RPLidar startet | Motor dreht | ⬜ |
+| `/scan` publiziert | Daten vorhanden | ⬜ |
+| Range korrekt | 0.15m - 12m | ⬜ |
+| RViz2 Visualisierung | Scan sichtbar | ⬜ |
 
 ---
 
-## 🔜 Nächste Phasen (Vorschau)
+## 📋 Phase 4: EKF Sensor Fusion
 
-### Phase 4: LiDAR + SLAM
+### Aufgaben
 
-- [ ] RPLIDAR A1 in Docker einbinden
-- [ ] slam_toolbox konfigurieren
+- [ ] `robot_localization` Package
+- [ ] EKF Node konfigurieren
+- [ ] Odom + IMU fusionieren (optional)
+- [ ] `/odom` → `/odometry/filtered`
+- [ ] TF: `odom` → `base_link`
+
+### Geplante Topics
+
+| Topic | Typ | Quelle |
+|-------|-----|--------|
+| `/odometry/filtered` | `nav_msgs/Odometry` | EKF |
+| `/tf` | `tf2_msgs/TFMessage` | EKF |
+
+---
+
+## 📋 Phase 5: SLAM (slam_toolbox)
+
+### Aufgaben
+
+- [ ] `slam_toolbox` konfigurieren
+- [ ] Online Async SLAM
 - [ ] Testraum kartieren
 - [ ] Karte speichern (PGM + YAML)
 
-### Phase 5: Navigation (Nav2)
+### Abhängigkeiten
 
-- [ ] Nav2 Stack konfigurieren
+- Phase 3 (RPLidar) ✅
+- Phase 4 (EKF) – optional, aber empfohlen
+
+---
+
+## 📋 Phase 6: Nav2 Autonome Navigation
+
+### Aufgaben
+
+- [ ] Nav2 Stack installieren
 - [ ] AMCL Lokalisierung
-- [ ] Autonome Punkt-zu-Punkt Navigation
+- [ ] Costmaps konfigurieren
+- [ ] Planner (NavFn / Smac)
+- [ ] Controller (DWB / RPP)
+- [ ] Punkt-zu-Punkt Navigation
 
-### Phase 6: Kamera + AI
+### Abhängigkeiten
 
-- [ ] IMX296 Global Shutter
-- [ ] YOLOv8 auf Hailo-8L
-- [ ] Personen-Erkennung → Stopp
-
-### Phase 7: Integration
-
-- [ ] Sensor Fusion (EKF)
-- [ ] Demo vorbereiten
+- Phase 5 (SLAM / Karte)
 
 ---
 
-## 📅 Revidierter Zeitplan
+## 🔧 Hardware-Übersicht
 
-```
-Woche:  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18
-        ════════════════════════════════════════════════════
-Phase 0 ████                                                 Fundament     ✅
-Phase 1       ████                                           Motor-Test    ✅
-Phase 2             ████                                     Odometrie     ✅
-Phase 3                   ████                               micro-ROS     ◄── AKTUELL
-Phase 4                         ████                         SLAM
-Phase 5                               ██████                 Navigation
-Phase 6                                       ████           Kamera/AI
-Phase 7                                             ████     Integration
-        ════════════════════════════════════════════════════
-```
+| Komponente | Spezifikation | Status |
+|------------|---------------|--------|
+| Seeed XIAO ESP32-S3 | Dual-Core, USB-CDC | ✅ Aktiv |
+| Cytron MDD3A | Dual-PWM, 4-16V | ✅ Aktiv |
+| JGA25-370 (2×) | 12V DC + Encoder | ✅ Aktiv |
+| Raspberry Pi 5 | 8GB, ROS 2 Humble | ✅ Aktiv |
+| RPLidar A1 | 360° 2D Lidar | ✅ Erkannt |
+| Hailo-8L | AI Accelerator | ⬜ Phase 6+ |
 
 ---
 
-## 🔧 Software-Versionen
-
-| Komponente | Version | Ort |
-|------------|---------|-----|
-| micro-ROS Firmware | **v2.0.0** | `esp32_microros_test/` |
-| micro-ROS Agent | Humble (Docker) | systemd Service |
-| Serial-Bridge (Backup) | v0.5.0-pid | `firmware_serial/` |
-
----
-
-## 📁 Projekt-Struktur (aktualisiert)
+## 📁 Projekt-Struktur
 
 ```
 amr-platform/
-├── esp32_microros_test/     # ◄── AKTIV (micro-ROS v2.0.0)
+├── firmware/                 # ◄── AKTIV (v3.2.0)
 │   ├── include/config.h
 │   ├── src/main.cpp
-│   ├── platformio.ini
-│   └── README.md
-├── firmware_serial/          # Backup (Serial-Bridge)
-├── firmware_test/            # Hardware-Tests
+│   └── platformio.ini
 ├── docker/
-│   └── docker-compose.yml   # serial_bridge entfernt
-├── scripts/
-│   ├── setup_microros_service.sh
-│   └── microros-agent.service
+│   └── docker-compose.yml
 ├── ros2_ws/
-└── docs/
+│   └── src/
+├── docs/
+│   ├── phases/
+│   │   └── 01-microros-esp32s3.md
+│   └── phase1-befehle.md
+└── scripts/
+```
+
+---
+
+## 📅 Zeitplan
+
+```
+Woche:  1  2  3  4  5  6  7  8
+        ════════════════════════════════
+Phase 1 ████                             ✅ Abgeschlossen
+Phase 2 ████                             ✅ Vorhanden
+Phase 3       ████                       ◄── AKTUELL
+Phase 4             ████
+Phase 5                   ████
+Phase 6                         ████
+        ════════════════════════════════
 ```
 
 ---
 
 ## ✅ Checkliste: Phase 3 abgeschlossen wenn
 
-- [x] Agent startet automatisch bei Boot
-- [x] `/cmd_vel` steuert Motoren
-- [x] Teleop funktioniert
-- [x] Failsafe getestet
-- [ ] `/odom` publiziert Position
-- [ ] TF-Tree ist korrekt
-- [ ] Code committet und dokumentiert
-- [ ] README.md aktualisiert
+- [ ] RPLidar startet automatisch
+- [ ] `/scan` publiziert Daten
+- [ ] RViz2 zeigt Scan korrekt
+- [ ] Frame `laser` → `base_link` TF
+- [ ] Dokumentation aktualisiert
+- [ ] Code committet
 
 ---
 
-*Aktualisiert: 2025-12-13 | Phase 3.1 + 3.2 abgeschlossen*
+## 🚀 Quick Start (Phase 1)
+
+### Nach Pi Reboot
+
+```bash
+cd ~/amr-platform/docker
+docker compose up -d
+sleep 5
+docker compose logs microros_agent --tail 5
+```
+
+### Motor-Test
+
+```bash
+docker compose exec amr_dev bash
+source /opt/ros/humble/setup.bash
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.15}, angular: {z: 0.0}}" -r 10
+```
+
+---
+
+*Aktualisiert: 2025-12-20 | Phase 1 abgeschlossen, Phase 3 bereit*
