@@ -1,23 +1,36 @@
 services:
-  # --- Service 1: Der Vermittler (ESP32 <-> ROS) ---
   microros_agent:
     image: microros/micro-ros-agent:humble
     container_name: amr_agent
-    network_mode: host  # Wichtig für DDS Kommunikation!
-    privileged: true    # Zugriff auf USB Hardware
+    network_mode: host
+    privileged: true
     restart: always
     command: serial --dev /dev/ttyACM0 -b 921600
     devices:
       - /dev/ttyACM0:/dev/ttyACM0
 
-  # --- Service 2: Ihre Umgebung (Bridge, Bringup, Dev) ---
+  rplidar:
+    image: ros:humble-ros-base
+    container_name: amr_lidar
+    network_mode: host
+    privileged: true
+    restart: always
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    volumes:
+      - ../ros2_ws:/root/ros2_ws
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        source /root/ros2_ws/install/setup.bash 2>/dev/null || true &&
+        ros2 launch sllidar_ros2 sllidar_a1_launch.py
+      "
+
   amr_dev:
     build: .
     container_name: amr_base
-    network_mode: host  # Muss im selben Netz sein wie der Agent
+    network_mode: host
     privileged: true
     volumes:
-      # Mountet Ihren Workspace in den Container (Live-Sync!)
       - ../ros2_ws:/root/ros2_ws
-    # Hält den Container am Leben, damit Sie sich einloggen können
     command: tail -f /dev/null
