@@ -1,23 +1,30 @@
 /**
  * @file main.cpp
  * @brief Firmware für den ESP32-S3 basierten AMR Low-Level Controller.
- * * Diese Firmware implementiert eine Dual-Core Architektur zur strikten
+ *
+ * Diese Firmware implementiert eine Dual-Core Architektur zur strikten
  * Trennung von Echtzeit-Regelung (Motorsteuerung) und High-Level Kommunikation
  * (micro-ROS). Sie folgt den Standards REP-103 (Einheiten) und REP-105 (Frames)
  * gemäß Industriestandards-AMR.md.
  *
- * @version 3.0.0
- * @date 2025-12-14
- * @author Jan Bloch (Reviewer Agent)
- * * @section architecture Architektur
+ * @version 3.1.0
+ * @date 2025-12-20
+ * @author Jan Unger
+ *
+ * @section architecture Architektur
  * - **Core 0 (Pro CPU):** Harte Echtzeit-Tasks (100 Hz PID Loop, Odometrie,
  * Safety).
  * - **Core 1 (App CPU):** Kommunikation (micro-ROS Agent, DDS Serialisierung).
  * - **Shared Memory:** Synchronisation via FreeRTOS Mutex.
- * * @section safety Sicherheitsfunktionen
+ *
+ * @section safety Sicherheitsfunktionen
  * - Dead Man's Switch (Heartbeat Timeout -> Motor Stop)
  * - Thread-Safe Data Exchange (Mutex Protection)
  * - Deterministisches Timing durch vTaskDelayUntil (Jitter-Free PID)
+ *
+ * CHANGELOG v3.1.0:
+ *   - PID-Regler aktiviert (war Open-Loop Test-Code)
+ *   - Startwerte: Kp=1.0, Ki=0.0, Kd=0.0 (aus config.h)
  */
 
 // =============================================================================
@@ -51,7 +58,8 @@
  * @struct SharedData
  * @brief Thread-sicherer Datenspeicher für den Austausch zwischen Core 0 und
  * Core 1.
- * * Dient als "Briefkasten". Core 1 schreibt Befehle, Core 0 liest sie.
+ *
+ * Dient als "Briefkasten". Core 1 schreibt Befehle, Core 0 liest sie.
  * Core 0 schreibt Odometrie, Core 1 liest sie.
  * Zugriff muss durch `dataMutex` geschützt werden.
  */
@@ -79,7 +87,8 @@ SemaphoreHandle_t dataMutex; ///< Mutex zum Schutz vor Race Conditions
 /**
  * @class PIDController
  * @brief Implementiert einen diskreten PID-Regler mit Anti-Windup.
- * * Verwendet die Standardform: Output = Kp*e + Ki*∫e + Kd*de/dt.
+ *
+ * Verwendet die Standardform: Output = Kp*e + Ki*∫e + Kd*de/dt.
  * Entwickelt in Phase 2 für Drift-Kompensation.
  */
 class PIDController {
@@ -99,7 +108,8 @@ class PIDController {
 
     /**
      * @brief Berechnet den Stellwert (PWM-Faktor).
-     * * @param setpoint Sollwert [m/s]
+     *
+     * @param setpoint Sollwert [m/s]
      * @param measurement Istwert [m/s]
      * @param dt Zeitdifferenz seit letztem Aufruf [s]
      * @return float Stellwert im Bereich [-1.0, 1.0]
@@ -222,7 +232,8 @@ void hal_init_complete() {
 /**
  * @brief Setzt die PWM-Werte für die Motoren basierend auf dem normalisierten
  * Input. Implementiert die Logik für den Cytron MDD3A Treiber (Dual PWM Mode).
- * * @param v_left Geschwindigkeit links [-1.0 ... 1.0]
+ *
+ * @param v_left Geschwindigkeit links [-1.0 ... 1.0]
  * @param v_right Geschwindigkeit rechts [-1.0 ... 1.0]
  */
 void hal_motor_write(float v_left, float v_right) {
@@ -258,9 +269,11 @@ void hal_motor_write(float v_left, float v_right) {
 
 /**
  * @brief Echtzeit-Task für Regelung und Odometrie (läuft auf Core 0).
- * * Dieser Task läuft mit fester Frequenz (100 Hz) und höchster Priorität.
+ *
+ * Dieser Task läuft mit fester Frequenz (100 Hz) und höchster Priorität.
  * Er ist physikalisch entkoppelt von der ROS-Kommunikation auf Core 1.
- * * @param pvParameters FreeRTOS Task Parameter (nicht genutzt)
+ *
+ * @param pvParameters FreeRTOS Task Parameter (nicht genutzt)
  */
 void controlTask(void *pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -368,22 +381,9 @@ void controlTask(void *pvParameters) {
         float set_v_l = target_v - (target_w * WHEEL_BASE / 2.0f);
         float set_v_r = target_v + (target_w * WHEEL_BASE / 2.0f);
 
-        // PID Berechnung
-        /*
+        // PID Berechnung (Parameter aus config.h: Kp=1.0, Ki=0.0, Kd=0.0)
         float pwm_l = pid_left.compute(set_v_l, v_enc_l, dt);
         float pwm_r = pid_right.compute(set_v_r, v_enc_r, dt);
-        */
-
-        // --- NEUER TEST-CODE (OPEN LOOP) ---
-        // Wir leiten die Wunsch-Geschwindigkeit direkt an den Motor weiter.
-        // Annahme für den Test: 1.0 m/s entspricht 100% PWM (PWM Faktor 1.0)
-
-        // Eventuell müssen wir den Wert verstärken, falls er zu langsam ist.
-        // Ein Faktor von 1.5 oder 2.0 hilft oft.
-        float feedforward_gain = 1.0f;
-
-        float pwm_l = set_v_l * feedforward_gain;
-        float pwm_r = set_v_r * feedforward_gain;
 
         // Hardware ansteuern
         hal_motor_write(pwm_l, pwm_r);
