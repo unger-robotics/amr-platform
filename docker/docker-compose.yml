@@ -7,8 +7,8 @@ services:
     privileged: true
     restart: always
     command: serial --dev /dev/esp32 -b 921600
-    devices:
-      - /dev/esp32:/dev/esp32
+    volumes:
+      - /dev:/dev
 
   # ROS 2 Humble Workspace (inkl. RPLidar, TF, URDF)
   amr_dev:
@@ -20,6 +20,5 @@ services:
     tty: true
     volumes:
       - ../ros2_ws:/root/ros2_ws
-    devices:
-      - /dev/rplidar:/dev/rplidar
+      - /dev:/dev
     command: tail -f /dev/null
