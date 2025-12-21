@@ -7,11 +7,9 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 
-# Installiere Launch-Files
+# Install launch files
 install(DIRECTORY
   launch
-  config
-  maps
   DESTINATION share/${PROJECT_NAME}
 )
 

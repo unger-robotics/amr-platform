@@ -1,5 +1,5 @@
 services:
-  # micro-ROS Agent für ESP32-S3
+  # micro-ROS Agent fuer ESP32-S3
   microros_agent:
     image: microros/micro-ros-agent:humble
     container_name: amr_agent
@@ -10,7 +10,7 @@ services:
     devices:
       - /dev/ttyACM0:/dev/ttyACM0
 
-  # ROS 2 Humble Workspace (inkl. RPLidar)
+  # ROS 2 Humble Workspace (inkl. RPLidar, TF, URDF)
   amr_dev:
     build: .
     container_name: amr_base

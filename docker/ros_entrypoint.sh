@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-# ROS 2 Umgebung laden
-source "/opt/ros/humble/setup.bash"
+# Setup ROS 2 Umgebung
+source /opt/ros/humble/setup.bash
 
-# Falls der Workspace schon gebaut wurde, lade ihn auch
-if [ -f "/root/ros2_ws/install/setup.bash" ]; then
-  source "/root/ros2_ws/install/setup.bash"
+# Falls Workspace gebaut wurde, auch sourcen
+if [ -f /root/ros2_ws/install/setup.bash ]; then
+    source /root/ros2_ws/install/setup.bash
 fi
 
 exec "$@"
