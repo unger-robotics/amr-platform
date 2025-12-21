@@ -22,4 +22,5 @@ services:
       - ../ros2_ws:/root/ros2_ws
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/ttyUSB1:/dev/ttyUSB1
     command: tail -f /dev/null

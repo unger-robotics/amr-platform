@@ -26,7 +26,11 @@ RUN (rosdep init || true) && rosdep update
 # 3. Arbeitsverzeichnis setzen
 WORKDIR /root/ros2_ws
 
-# 4. Entrypoint Skript (laedt ROS Umgebung automatisch)
+# 4. ROS-Umgebung automatisch laden (fuer docker compose exec)
+RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
+    echo "[ -f /root/ros2_ws/install/setup.bash ] && source /root/ros2_ws/install/setup.bash" >> ~/.bashrc
+
+# 5. Entrypoint Skript (laedt ROS Umgebung automatisch)
 COPY ros_entrypoint.sh /ros_entrypoint.sh
 RUN chmod +x /ros_entrypoint.sh
 
